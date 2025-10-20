@@ -1,0 +1,591 @@
+import torch
+from torch.utils.data import Dataset
+import torchvision.transforms as T
+import os
+import random
+import numpy as np
+
+from PIL import Image, ImageDraw
+
+from datasets import load_dataset
+
+from .trainer import OminiModel, get_config, train
+from ..pipeline.flux_omini import Condition, convert_to_condition, generate_ca
+
+from glob import glob
+from natsort import natsorted
+
+class FFHQDataset(torch.utils.data.Dataset):
+
+    def __init__(
+        self,
+        dataset_path= '/mnt/data2/dataset/datasets/rahulbhalley/ffhq-1024x1024/versions/1/images1024x1024',
+        num_validation = 5,
+        mode = 'train',
+        condition_type = 'condition_blended_image_blurdownsample8_segGlass_landmark',
+
+    ):
+
+        self.dataset_path = dataset_path
+        img_list = sorted(glob(f"{dataset_path}/*.png"))
+
+        if mode == 'train':
+            img_list = img_list[:-num_validation]
+        else:
+            img_list = img_list[-num_validation:]
+        
+        # dirname_list = [os.path.dirname(f) for f in img_list]
+        basename_list = [os.path.basename(f).split('.')[0] for f in img_list]
+        id_embed_list = [os.path.join(dataset_path, 'pulid_id', f"{basename}.npy") for basename in basename_list]
+        uncond_id_embed_path = os.path.join(dataset_path, 'pulid_id', 'uncond.npy')
+        condition_list = [os.path.join(dataset_path, condition_type, basename + '.png') for basename in basename_list]
+
+
+        self.image_paths = img_list
+        self.id_embed_paths = id_embed_list
+        self.controlnet_paths = condition_list
+        self.uncond_id_embed = torch.Tensor(np.load(uncond_id_embed_path))
+
+
+    def __len__(self):
+        # assert len(self.image_paths) == len(self.mask_paths)
+        # assert len(self.mask_paths) == len(self.image_paths)
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        while True:
+            try:
+
+                # Processing
+                img = Image.open(self.image_paths[idx]).convert('RGB')
+                controlnet_img = Image.open(self.controlnet_paths[idx]).convert('RGB')
+                face_id_embed = torch.Tensor(np.load(self.id_embed_paths[idx]))
+                # original_width, original_height = img.size
+                
+
+                # # Resizing
+                # img = img.resize((self.size, self.size))
+                # controlnet_img = controlnet_img.resize((self.size, self.size))
+
+                # # Transform to pytorch tensor w/ [-1,1]
+                # img = self.train_transforms(img)
+                # controlnet_img = self.controlnet_transforms(controlnet_img)
+                # # seg_img = self.controlnet_transforms(seg_img)
+
+                # # drop
+                # text = self.args.validation_prompt
+                # drop_image_embed = 0
+                # rand_num = random.random()
+                # if rand_num < self.i_drop_rate:
+                #     drop_image_embed = 1
+                # elif rand_num < (self.i_drop_rate + self.t_drop_rate):
+                #     text = ""
+                # elif rand_num < (self.i_drop_rate + self.t_drop_rate + self.ti_drop_rate):
+                #     text = ""
+                #     drop_image_embed = 1
+                # if drop_image_embed:
+                #     face_id_embed = torch.zeros_like(face_id_embed)
+                # # get text and tokenize
+                # # text_input_ids = self.tokenizer(
+                # #     text,
+                # #     max_length=self.tokenizer.model_max_length,
+                # #     padding="max_length",
+                # #     truncation=True,
+                # #     return_tensors="pt"
+                # # ).input_ids
+                # prompt_embeds, pooled_prompt_embeds = self.compute_text_embeddings(
+                #     text, self.text_encoders, self.tokenizers
+                # )
+
+                return {
+                    "img": img,
+                    # "original_size": (original_height, original_width),
+                    # "prompt_embeds": prompt_embeds,
+                    # "pooled_prompt_embeds": pooled_prompt_embeds,
+                    "face_id_embed": face_id_embed,
+                    "uncond_id_embed": self.uncond_id_embed,
+                    # "drop_image_embed": drop_image_embed,
+                    'controlnet_img': controlnet_img,
+                }
+
+            
+            except Exception as e:
+                print(f"[WARN] idx {idx} failed with error: {e}, retrying...")
+                idx = random.randint(0, self.__len__() - 1)
+
+
+class VGGDataset(torch.utils.data.Dataset):
+
+    def __init__(
+        self,
+        dataset_path='/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan',
+        num_validation = 5,
+        mode = 'train',
+        condition_type = 'condition_blended_image_blurdownsample8_segGlass_landmark',
+        gaze_type = 'unigaze',
+
+    ):
+
+        self.dataset_path = dataset_path
+        # img_list = sorted(glob(f"{dataset_path}/*/*.jpg"))
+
+        # AES Score 기준으로 필터링
+        import json
+        json_path = '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/score.json'
+        with open(json_path, 'r') as f:
+            score_dict = json.load(f)
+
+        training_base_list = list(natsorted(os.listdir(dataset_path)))[:-2000] # 마지막 2000개는 validation set으로 사용
+        high_aes_keys = [k for k, v in score_dict.items() if v['aes'] > 5.5]
+        img_list = [os.path.join(dataset_path, k + '.jpg') for k in high_aes_keys if os.path.exists(os.path.join(dataset_path, k + '.jpg')) and k.split('/')[0] in training_base_list] 
+        # img_list = natsorted(img_list)[:1000] # for debugging, limit to 1000 images
+        print(f"Filtered images based on AES score > 5.5: {len(img_list)} images remain.")
+
+        random.seed(0)
+        random.shuffle(img_list)
+        if mode == 'train':
+            img_list = img_list[:-num_validation]
+        else:
+            img_list = img_list[-num_validation:]
+        
+        dirname_list = [os.path.dirname(f) for f in img_list]
+        basename_list = [os.path.basename(f).split('.')[0] for f in img_list]
+        gaze_paths = [os.path.join(dataset_path, dirname, gaze_type, f"{basename}.npy") for (dirname, basename) in zip(dirname_list, basename_list) ]
+        print(f"[INFO] Using gaze type: {gaze_type}")
+
+        # imgs_list를 gaze_path 기준으로 다시 필터링 : gaze가 안된 이미지 (e.g. 80도 이상)도 존재
+        img_list = [img for img, gaze_path in zip(img_list, gaze_paths) if os.path.exists(gaze_path)]   
+        gaze_paths = [gaze_path for gaze_path in gaze_paths if os.path.exists(gaze_path)]
+        dirname_list = [os.path.dirname(f) for f in img_list]
+        basename_list = [os.path.basename(f).split('.')[0] for f in img_list]
+
+        print(f"[INFO] After filtering based on gaze paths: {len(img_list)} images remain.")
+
+        # 모든 gaze path가 존재하는지 확인
+        for gaze_path in gaze_paths:
+            if not os.path.exists(gaze_path):
+                raise ValueError(f"Gaze path does not exist: {gaze_path}")
+
+
+        # Source의 Image 및 ID embed 설정
+        # target과 동일한 인물 내에서 랜덤하게 하나 선택
+        # id_embed_list = [os.path.join(dataset_path, dirname, 'pulid_id', f"{basename}.npy") for (dirname, basename) in zip(dirname_list, basename_list)]
+        src_img_list = []
+        id_embed_list = []
+        for (dirname, basename) in zip(dirname_list, basename_list):
+            id_embed_candidates = glob(os.path.join(dataset_path, dirname, 'pulid_id', '*.npy'))
+            if len(id_embed_candidates) == 0:
+                raise ValueError(f"No id embed found for {dirname}/{basename}")
+            selected_id_embed = random.choice(id_embed_candidates)
+            id_embed_list.append(selected_id_embed)
+            src_img_list.append(os.path.join(dataset_path, dirname, os.path.basename(selected_id_embed).replace('.npy', '.jpg')))
+
+        uncond_id_embed_path = '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000002/pulid_id/uncond.npy'
+        condition_list = [os.path.join(dataset_path, dirname, condition_type, basename + '.png') for (dirname, basename) in zip(dirname_list, basename_list)]
+
+        self.src_img_list = src_img_list
+        self.image_paths = img_list
+        self.id_embed_paths = id_embed_list
+        self.controlnet_paths = condition_list
+        self.gaze_paths = gaze_paths
+        
+        self.uncond_id_embed = torch.Tensor(np.load(uncond_id_embed_path))
+
+        assert len(self.image_paths) == len(self.id_embed_paths)
+        assert len(self.image_paths) == len(self.controlnet_paths)
+
+
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        while True:
+            try:
+                # Processing
+                src_img = Image.open(self.src_img_list[idx]).convert('RGB')
+                img = Image.open(self.image_paths[idx]).convert('RGB')
+                controlnet_img = Image.open(self.controlnet_paths[idx]).convert('RGB')
+                face_id_embed = torch.Tensor(np.load(self.id_embed_paths[idx]))
+                gaze_embed = torch.Tensor(np.load(self.gaze_paths[idx]))
+                # original_width, original_height = img.size
+                
+
+                # # Resizing
+                # img = img.resize((self.size, self.size))
+                # controlnet_img = controlnet_img.resize((self.size, self.size))
+
+                # # Transform to pytorch tensor w/ [-1,1]
+                # img = self.train_transforms(img)
+                # controlnet_img = self.controlnet_transforms(controlnet_img)
+                # # seg_img = self.controlnet_transforms(seg_img)
+
+                # # drop
+                # text = self.args.validation_prompt
+                # drop_image_embed = 0
+                # rand_num = random.random()
+                # if rand_num < self.i_drop_rate:
+                #     drop_image_embed = 1
+                # elif rand_num < (self.i_drop_rate + self.t_drop_rate):
+                #     text = ""
+                # elif rand_num < (self.i_drop_rate + self.t_drop_rate + self.ti_drop_rate):
+                #     text = ""
+                #     drop_image_embed = 1
+                # if drop_image_embed:
+                #     face_id_embed = torch.zeros_like(face_id_embed)
+                # # get text and tokenize
+                # # text_input_ids = self.tokenizer(
+                # #     text,
+                # #     max_length=self.tokenizer.model_max_length,
+                # #     padding="max_length",
+                # #     truncation=True,
+                # #     return_tensors="pt"
+                # # ).input_ids
+                # prompt_embeds, pooled_prompt_embeds = self.compute_text_embeddings(
+                #     text, self.text_encoders, self.tokenizers
+                # )
+
+                return {
+                    "src_img": src_img,
+                    "img": img,
+                    # "original_size": (original_height, original_width),
+                    # "prompt_embeds": prompt_embeds,
+                    # "pooled_prompt_embeds": pooled_prompt_embeds,
+                    "face_id_embed": face_id_embed,
+                    "uncond_id_embed": self.uncond_id_embed,
+                    # "drop_image_embed": drop_image_embed,
+                    'controlnet_img': controlnet_img,
+                    "gaze_embed": gaze_embed,
+                }
+
+            
+            except Exception as e:
+                print(f"[WARN] idx {idx} failed with error: {e}, retrying...")
+                idx = random.randint(0, self.__len__() - 1)
+
+
+class ImageConditionDataset(Dataset):
+    def __init__(
+        self,
+        base_dataset,
+        condition_size=(512, 512),
+        target_size=(512, 512),
+        condition_type: str = "deblurring",
+        drop_text_prob: float = 0.1,
+        drop_image_prob: float = 0.1,
+        drop_id_prob: float = 0.1,
+        drop_gaze_prob: float = 0.1,
+        return_pil_image: bool = False,
+        position_scale=1.0,
+    ):
+        self.base_dataset = base_dataset
+        self.condition_size = condition_size
+        self.target_size = target_size
+        self.condition_type = condition_type
+        self.drop_text_prob = drop_text_prob
+        self.drop_image_prob = drop_image_prob
+        self.drop_id_prob = drop_id_prob
+        self.drop_gaze_prob = drop_gaze_prob
+        self.return_pil_image = return_pil_image
+        self.position_scale = position_scale
+
+
+        self.to_tensor = T.ToTensor()
+
+    def __len__(self):
+        return len(self.base_dataset)
+
+    def __get_condition__(self, image, condition_type):
+        condition_size = self.condition_size
+        position_delta = np.array([0, 0])
+        if condition_type in ["canny", "coloring", "deblurring", "depth"]:
+            image, kwargs = image.resize(condition_size), {}
+            if condition_type == "deblurring":
+                blur_radius = random.randint(1, 10)
+                kwargs["blur_radius"] = blur_radius
+            condition_img = convert_to_condition(condition_type, image, **kwargs)
+        elif condition_type == "depth_pred":
+            depth_img = convert_to_condition("depth", image)
+            condition_img = image.resize(condition_size)
+            image = depth_img.resize(condition_size)
+        elif condition_type == "fill":
+            condition_img = image.resize(condition_size).convert("RGB")
+            w, h = image.size
+            x1, x2 = sorted([random.randint(0, w), random.randint(0, w)])
+            y1, y2 = sorted([random.randint(0, h), random.randint(0, h)])
+            mask = Image.new("L", image.size, 0)
+            draw = ImageDraw.Draw(mask)
+            draw.rectangle([x1, y1, x2, y2], fill=255)
+            if random.random() > 0.5:
+                mask = Image.eval(mask, lambda a: 255 - a)
+            condition_img = Image.composite(
+                image, Image.new("RGB", image.size, (0, 0, 0)), mask
+            )
+        elif condition_type == "sr":
+            condition_img = image.resize(condition_size)
+            position_delta = np.array([0, -condition_size[0] // 16])
+        else:
+            raise ValueError(f"Condition type {condition_type} is not  implemented.")
+        return condition_img, position_delta
+
+    def __getitem__(self, idx):
+        try :
+            base_dataset_item = self.base_dataset[idx]
+            image = base_dataset_item["img"]
+            src_img = base_dataset_item.get('src_img', base_dataset_item['img']) # src_img이 없으면 그냥 img 사용
+            image = image.resize(self.target_size).convert("RGB")
+            gaze_embed = base_dataset_item['gaze_embed'].squeeze()
+            # description = base_dataset_item["json"]["prompt"] 
+            description = 'a photo of human face' # using fixed prompt for face swap
+
+            condition_size = self.condition_size
+            position_scale = self.position_scale
+
+            _, position_delta = self.__get_condition__(
+                image, self.condition_type
+            )
+            condition_img = base_dataset_item["controlnet_img"]
+            condition_img = condition_img.resize(condition_size).convert("RGB")
+
+            id_embed = base_dataset_item["face_id_embed"].squeeze()
+            uncond_id_embed = base_dataset_item["uncond_id_embed"].squeeze()
+
+            # Randomly drop text or image (for training)
+            drop_text = random.random() < self.drop_text_prob
+            drop_image = random.random() < self.drop_image_prob
+            drop_id = random.random() < self.drop_id_prob
+            drop_gaze = random.random() < self.drop_gaze_prob
+
+            if drop_text:
+                description = ""
+            if drop_image:
+                condition_img = Image.new("RGB", condition_size, (0, 0, 0))
+            if drop_id:
+                id_embed = uncond_id_embed
+            if drop_gaze:
+                gaze_embed = torch.zeros_like(gaze_embed)
+        except Exception as e:
+            # In case of error, return a random item
+            print(f"[WARN] idx {idx} failed with error: {e}, retrying...")
+            return self.__getitem__(random.randint(0, self.__len__() - 1))
+
+
+
+        return {
+            "src_img": self.to_tensor(src_img),
+            "image": self.to_tensor(image),
+            "condition_0": self.to_tensor(condition_img),
+            "condition_type_0": self.condition_type,
+            "position_delta_0": position_delta,
+            "description": description,
+            "id_embed": id_embed,
+            'uncond_id_embed': uncond_id_embed,
+            "gaze_embed": gaze_embed,
+            "drop_gaze" : drop_gaze, # type : bool
+            **({"pil_image": [image, condition_img]} if self.return_pil_image else {}),
+            **({"position_scale_0": position_scale} if position_scale != 1.0 else {}),
+        }
+
+
+# TODO : for faceswap
+@torch.no_grad()
+def test_function(model, save_path, file_name, test_dataset):
+    print(f"[DEBUG] In test_function, LoRA weight mean: {model.transformer.transformer_blocks[0].attn.to_q.lora_A['default'].weight.data.mean()}")
+
+    # condition_size = model.training_config["dataset"]["condition_size"]
+    # target_size = model.training_config["dataset"]["target_size"]
+
+    # position_delta = model.training_config["dataset"].get("position_delta", [0, 0])
+    # position_scale = model.training_config["dataset"].get("position_scale", 1.0)
+
+    # adapter = model.adapter_names[2]
+    # condition_type = model.training_config["condition_type"]
+    # test_list = []
+
+    # if condition_type in ["canny", "coloring", "deblurring", "depth"]:
+    #     image = Image.open("assets/vase_hq.jpg")
+    #     image = image.resize(condition_size)
+    #     condition_img = convert_to_condition(condition_type, image, 5)
+    #     condition = Condition(condition_img, adapter, position_delta, position_scale)
+    #     test_list.append((condition, "A beautiful vase on a table."))
+    # elif condition_type == "depth_pred":
+    #     image = Image.open("assets/vase_hq.jpg")
+    #     image = image.resize(condition_size)
+    #     condition = Condition(image, adapter, position_delta, position_scale)
+    #     test_list.append((condition, "A beautiful vase on a table."))
+    # elif condition_type == "fill":
+    #     condition_img = (
+    #         Image.open("./assets/vase_hq.jpg").resize(condition_size).convert("RGB")
+    #     )
+    #     mask = Image.new("L", condition_img.size, 0)
+    #     draw = ImageDraw.Draw(mask)
+    #     a = condition_img.size[0] // 4
+    #     b = a * 3
+    #     draw.rectangle([a, a, b, b], fill=255)
+    #     condition_img = Image.composite(
+    #         condition_img, Image.new("RGB", condition_img.size, (0, 0, 0)), mask
+    #     )
+    #     condition = Condition(condition, adapter, position_delta, position_scale)
+    #     test_list.append((condition, "A beautiful vase on a table."))
+    # elif condition_type == "super_resolution":
+    #     image = Image.open("assets/vase_hq.jpg")
+    #     image = image.resize(condition_size)
+    #     condition = Condition(image, adapter, position_delta, position_scale)
+    #     test_list.append((condition, "A beautiful vase on a table."))
+    # else:
+    #     raise NotImplementedError
+    
+    os.makedirs(save_path, exist_ok=True)
+
+    trg_imgs = []
+    condition_imgs = []
+    result_imgs = []
+    src_imgs = []
+
+    for i in range(len(test_dataset)):
+        each = test_dataset[i]
+        src_img = each.get('src_img', each['image']) # torch.Tensor [0, 1]
+        img = each['image'] # torch.Tensor [0, 1] 
+        prompt = each["description"]
+        condition_img = each["condition_0"] # torch.Tensor [0, 1]
+        condition_type = each["condition_type_0"]
+        position_delta = each.get('position_delta', [0,0])
+        position_scale = each.get('position_scale', 1.0)
+        id_embed = each['id_embed']
+        if len(id_embed.shape) == 2: # Make batch size 1
+            id_embed = id_embed.unsqueeze(0)
+        uncond_id_embed = each['uncond_id_embed']
+        condition = Condition(condition_img, model.adapter_names[2], position_delta, position_scale)
+        target_size = model.training_config["dataset"]["target_size"]
+        gaze_embed = each.get('gaze_embed', None) # (gaze_dim,) or None
+        print(f"[DEBUG] Test sample {i}, gaze_embed.shape : {gaze_embed.shape if gaze_embed is not None else None}")
+        if gaze_embed is not None and len(gaze_embed.shape) == 1:
+            gaze_embed = gaze_embed.unsqueeze(0)
+            
+
+        generator = torch.Generator('cpu').manual_seed(0)
+
+        res = generate_ca(
+            model.flux_pipe,
+            prompt=prompt,
+            conditions=[condition],
+            height=target_size[1],
+            width=target_size[0],
+            generator=generator,
+            model_config=model.model_config,
+            kv_cache=model.model_config.get("independent_condition", False),
+            id_embed=id_embed,
+            uncond_id_embed=uncond_id_embed,
+            gaze_embed=gaze_embed,
+        )
+        file_path = os.path.join(save_path, f"{file_name}_{condition_type}_{i}.jpg")
+        res.images[0].save(file_path)
+        result_imgs.append(res.images[0])
+
+        # save condition image
+        condition_image_pil = T.ToPILImage()(condition_img)
+        condition_imgs.append(condition_image_pil)
+        condition_image_pil.save(os.path.join(save_path, f"{file_name}_{condition_type}_{i}_condition.jpg"))
+
+        img_pil = T.ToPILImage()(img)
+        trg_imgs.append(img_pil)
+        img_pil.save(os.path.join(save_path, f"{file_name}_{condition_type}_{i}_original.jpg"))
+
+        src_img_pil = T.ToPILImage()(src_img)
+        src_img_pil.save(os.path.join(save_path, f"{file_name}_{condition_type}_{i}_src.jpg"))
+        src_imgs.append(src_img_pil)
+
+    return trg_imgs, condition_imgs, result_imgs, src_imgs
+
+
+def main():
+    # Initialize
+    config = get_config()
+    training_config = config["train"]
+    torch.cuda.set_device(int(os.environ.get("LOCAL_RANK", 0)))
+
+    # Load dataset text-to-image-2M
+    # dataset = load_dataset(
+    #     "webdataset",
+    #     data_files={"train": training_config["dataset"]["urls"]},
+    #     split="train",
+    #     cache_dir="cache/t2i2m",
+    #     num_proc=32,
+    # )
+
+    dataset_type = training_config["dataset"].get("name", "ffhq")
+    if dataset_type == "ffhq":
+        dataset_class = FFHQDataset
+    elif dataset_type == "vgg":
+        dataset_class = VGGDataset
+    else:
+        print(f"[ERROR] Dataset type {dataset_type} is not implemented.")
+        raise NotImplementedError
+    print(f"[INFO] Using dataset type: {dataset_type}, with class {dataset_class}")
+
+    train_dataset = dataset_class(
+        mode='train',
+        num_validation = training_config["dataset"].get("num_validation", 5),
+        condition_type='condition_blended_image_blurdownsample8_segGlass_landmark',
+        gaze_type=training_config.get("gaze_type", 'unigaze'),
+    )
+    test_dataset = dataset_class(
+        mode='test',
+        num_validation = training_config["dataset"].get("num_validation", 5),
+        condition_type='condition_blended_image_blurdownsample8_segGlass_landmark',
+        gaze_type=training_config.get("gaze_type", 'unigaze'),
+    )
+
+    # Initialize custom dataset
+    dataset = ImageConditionDataset(
+        train_dataset,
+        condition_size=training_config["dataset"]["condition_size"],
+        target_size=training_config["dataset"]["target_size"],
+        condition_type=training_config["condition_type"],
+        drop_text_prob=training_config["dataset"]["drop_text_prob"],
+        drop_image_prob=training_config["dataset"]["drop_image_prob"],
+        drop_id_prob=training_config["dataset"].get("drop_id_prob", 0.1),
+        drop_gaze_prob=training_config["dataset"].get("drop_gaze_prob", 0.1),
+        position_scale=training_config["dataset"].get("position_scale", 1.0),
+    )
+
+    test_dataset = ImageConditionDataset(
+        test_dataset,
+        condition_size=training_config["dataset"]["condition_size"],
+        target_size=training_config["dataset"]["target_size"],
+        condition_type=training_config["condition_type"],
+        drop_text_prob=0.0,
+        drop_image_prob=0.0,
+        drop_id_prob=0.0,
+        drop_gaze_prob=0.0,
+        position_scale=training_config["dataset"].get("position_scale", 1.0),
+    )
+    # with torch.utils.checkpoint.set_checkpoint_debug_enabled(True):
+    
+    # Initialize model
+    trainable_model = OminiModel(
+        flux_pipe_id=config["flux_path"],
+        lora_path=training_config.get("lora_path", None),
+        lora_config=training_config["lora_config"],
+        device=f"cuda",
+        dtype=getattr(torch, config["dtype"]),
+        optimizer_config=training_config["optimizer"],
+        model_config=config.get("model", {}),
+        gradient_checkpointing=training_config.get("gradient_checkpointing", False),
+        use_netarc=training_config.get("use_netarc", False),
+        use_irse50=training_config.get("use_irse50", False),
+        train_omini=training_config.get("train_omini", False),
+        train_pulid_enc=training_config.get("train_pulid_enc", False),
+        train_pulid_ca=training_config.get("train_pulid_ca", False),
+        gaze_type=training_config.get("gaze_type", 'unigaze'),
+        train_gaze=training_config.get("train_gaze", False),
+        train_gaze_type=training_config.get("train_gaze_type", 'CA'),
+        train_gaze_loss=training_config.get("train_gaze_loss", False),
+        train_gaze_loss_type=training_config.get("train_gaze_loss_type", 'feature'),
+
+    )
+    train(dataset, trainable_model, config, test_function=lambda *args : test_function(*args, test_dataset=test_dataset))
+
+
+if __name__ == "__main__":
+    main()
