@@ -5,3 +5,4 @@ wandb/
 wget-log
 *.safetensors
 __pycache__/
+*.pyc

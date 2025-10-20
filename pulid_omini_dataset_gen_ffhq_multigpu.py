@@ -1,4 +1,5 @@
 import os
+os.environ['HF_HUB_DISABLE_XET'] = '1'
 import torch
 import torch.distributed as dist
 from transformer_flux_ca import FluxTransformer2DModelCA
@@ -22,7 +23,7 @@ use_gaze = False
 weight_dtype = torch.bfloat16
 # transformer = FluxTransformer2DModel.from_pretrained("black-forest-labs/FLUX.1-dev", torch_dtype=weight_dtype, subfolder='transformer')
 # transformer = FluxTransformer2DModelCA.from_pretrained("black-forest-labs/FLUX.1-dev", torch_dtype=weight_dtype, subfolder='transformer', low_cpu_mem_usage=False, device_map=None)
-transformer = FluxTransformer2DModelCA.from_pretrained("black-forest-labs/FLUX.1-Krea-dev", torch_dtype=weight_dtype, subfolder='transformer', low_cpu_mem_usage=False, device_map=None, use_gaze=use_gaze)
+transformer = FluxTransformer2DModelCA.from_pretrained("black-forest-labs/FLUX.1-Krea-dev", torch_dtype=weight_dtype, subfolder='transformer', low_cpu_mem_usage=False, device_map=None, use_gaze=use_gaze, local_rank=local_rank)
 # no grad
 torch.set_grad_enabled(False)
 
@@ -37,28 +38,28 @@ flux = FluxPipelineCA.from_pretrained("black-forest-labs/FLUX.1-Krea-dev", trans
 
 
 # ckpt = 43000
-# lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_scratch_lora64_20251004-005548/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/mnt/cvlab17_data2/jiwon/OminiControl/runs/faceswap_scratch_lora64_20251004-005548/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/pulid_omini_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}/ffhq_eval'
 
 # ckpt = 60000
-# lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_20251010-115546/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/mnt/cvlab17_data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_20251010-115546/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/pulid_omini_vgg_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 
 # ckpt = 8000
-# lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_20251014-014645/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/mnt/cvlab17_data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_20251014-014645/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/pulid_omini_vgg_idLoss_t<=0.33_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 
 # ckpt = 8000
-# lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_t<=0.5_20251014-021510/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/mnt/cvlab17_data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_t<=0.5_20251014-021510/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/pulid_omini_vgg_idLoss_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 
 ckpt = 80000
-lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_20251014-162532/ckpt/{ckpt}/default.safetensors'
+lora_file_path = f'/mnt/cvlab17_data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_20251014-162532/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
-output_dir = f'/mnt/data6/ffhq_swapped/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/'
+output_dir = f'/mnt/cvlab17_data6/ffhq_swapped/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/'
 
 # ckpt = 8000
-# lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt60000_gaze_20251018-024629/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/mnt/cvlab17_data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt60000_gaze_20251018-024629/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt60000_gaze_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 
 adapter_name = 'default'
@@ -73,9 +74,10 @@ if use_gaze:
         print(f"[INFO] Loaded gaze CA weights from {os.path.join(os.path.dirname(lora_file_path), 'gaze_ca.pth')}")
 
 flux.transformer.components_to_device(device, weight_dtype)
+flux.set_progress_bar_config(disable=True)
 
 # Compile the model with torch.compile for faster inference
-flux.transformer = torch.compile(flux.transformer, mode="reduce-overhead", fullgraph=True)
+# flux.transformer = torch.compile(flux.transformer, mode="reduce-overhead", fullgraph=True)
 
 
 
@@ -88,9 +90,13 @@ if rank == 0:
     os.makedirs(output_dir, exist_ok=True)
 
 from natsort import natsorted
-all_imgs_list = natsorted(glob('/mnt/data2/dataset/datasets/rahulbhalley/ffhq-1024x1024/versions/1/images1024x1024/*.png'))
+all_imgs_list = natsorted(glob('/mnt/cvlab17_data2/dataset/datasets/rahulbhalley/ffhq-1024x1024/versions/1/images1024x1024/*.png'))
 src_img_path_list_full = all_imgs_list[:-1]
 trg_img_path_list_full = all_imgs_list[1:]
+
+# 순서 반대로
+src_img_path_list_full = src_img_path_list_full[::-1]
+trg_img_path_list_full = trg_img_path_list_full[::-1]
 
 # Create pairs
 path_pairs = list(zip(src_img_path_list_full, trg_img_path_list_full))
@@ -208,6 +214,7 @@ for src_img_path, trg_img_path in tqdm(zip(src_img_path_list, trg_img_path_list)
     #     id_embed=id_embeddings,
     #     uncond_id_embed=uncond_id_embeddings,
     # )
+    print(f"GPU {rank} :  Saving image to {output_dir}/{src_num}.png")
     image = img.images[0] if isinstance(img.images, list) else img.images
     image.save(f"{output_dir}/{src_num}.png")
     # condition_img.save(f"{output_dir}/{src_num}_cond.png")

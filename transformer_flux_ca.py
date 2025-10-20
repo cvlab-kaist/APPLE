@@ -589,6 +589,7 @@ class FluxTransformer2DModelCA(
         guidance_embeds: bool = False,
         axes_dims_rope: Tuple[int, int, int] = (16, 56, 56),
         onnx_provider: str = 'cuda',
+        local_rank: int = 0,
         # ID Loss training
         use_netarc: bool = False, # For ID loss training, deprecated
         use_irse50: bool = False, # For ID loss training
@@ -699,7 +700,7 @@ class FluxTransformer2DModelCA(
         # antelopev2
         snapshot_download('DIAMONIK7777/antelopev2', local_dir='models/antelopev2')
         providers = ['CPUExecutionProvider'] if onnx_provider == 'cpu' \
-            else ['CUDAExecutionProvider']
+            else [('CUDAExecutionProvider', {'device_id': local_rank})]
         self.app = FaceAnalysis(name='antelopev2', root='.', providers=providers)
         self.app.prepare(ctx_id=0, det_size=(640, 640))
         self.handler_ante = insightface.model_zoo.get_model('models/antelopev2/glintr100.onnx',
