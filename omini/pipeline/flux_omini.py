@@ -21,7 +21,7 @@ from contextlib import contextmanager
 import cv2
 
 from PIL import Image, ImageFilter
-from transformer_flux_ca import FluxTransformer2DModelCA
+# from transformer_flux_ca import FluxTransformer2DModelCA
 from torch.nn.attention import SDPBackend, sdpa_kernel
 
 
@@ -37,12 +37,12 @@ def clip_hidden_states(hidden_states: torch.FloatTensor) -> torch.FloatTensor:
     return hidden_states
 
 
-def encode_images(pipeline: FluxPipeline, images: torch.Tensor):
+def encode_images(pipeline: FluxPipeline, images: torch.Tensor, execution_device="cuda"):
     """
     Encodes the images into tokens and ids for FLUX pipeline.
     """
     images = pipeline.image_processor.preprocess(images)
-    images = images.to(pipeline.device).to(pipeline.dtype)
+    images = images.to(execution_device).to(pipeline.dtype)
     images = pipeline.vae.encode(images).latent_dist.sample()
     images = (
         images - pipeline.vae.config.shift_factor
@@ -126,10 +126,10 @@ class Condition(object):
         self.is_complement = is_complement
 
     def encode(
-        self, pipe: FluxPipeline, empty: bool = False
+        self, pipe: FluxPipeline, empty: bool = False, execution_device="cuda"
     ) -> Tuple[torch.Tensor, torch.Tensor, int]:
         condition_empty = Image.new("RGB", self.condition.size, (0, 0, 0))
-        tokens, ids = encode_images(pipe, condition_empty if empty else self.condition)
+        tokens, ids = encode_images(pipe, condition_empty if empty else self.condition, execution_device=execution_device)
 
         if self.position_delta is not None:
             ids[:, 1] += self.position_delta[0]
@@ -462,7 +462,7 @@ def transformer_forward(
     return (output,)
 
 def transformer_forward_ca(
-    transformer: FluxTransformer2DModelCA,
+    transformer,
     image_features: List[torch.Tensor],
     text_features: List[torch.Tensor] = None,
     img_ids: List[torch.Tensor] = None,
@@ -1101,8 +1101,8 @@ def generate_ca(
                     clear_cache()
             use_cond = not (kv_cache) or mode == "write"
 
-            noise_pred = transformer_forward_ca(
-                self.transformer,
+            # noise_pred = transformer_forward_ca(
+            noise_pred = self.transformer(
                 image_features=[latents] + (c_latents if use_cond else []), # X, C_I ...
                 text_features=[prompt_embeds], # C_T
                 img_ids=[latent_image_ids] + (c_ids if use_cond else []),
@@ -1121,6 +1121,9 @@ def generate_ca(
                 id_weight=id_weight,
                 gaze_embed=gaze_embed.to(latents.device, latents.dtype) if gaze_embed is not None else None,
                 gaze_weight=gaze_weight,
+                single_block_forward=single_block_forward,
+                block_forward=block_forward,
+                attn_forward=attn_forward,
                 **transformer_kwargs,
             )[0]
 

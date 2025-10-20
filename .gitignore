@@ -1,0 +1,7 @@
+results*
+checkpoints*
+Other_dependencies*
+wandb/
+wget-log
+*.safetensors
+__pycache__/

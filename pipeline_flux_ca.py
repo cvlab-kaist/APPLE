@@ -42,7 +42,8 @@ from diffusers.utils import (
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.pipelines.flux.pipeline_output import FluxPipelineOutput
-
+from diffusers import FluxPipeline
+from transformer_flux_ca import FluxTransformer2DModelCA
 
 if is_torch_xla_available():
     import torch_xla.core.xla_model as xm
@@ -143,11 +144,12 @@ def retrieve_timesteps(
         timesteps = scheduler.timesteps
     return timesteps, num_inference_steps
 
-from diffusers import FluxPipeline
-from transformer_flux_ca import FluxTransformer2DModelCA
+
 class FluxPipelineCA(
     FluxPipeline,
 ):
+
+    model_cpu_offload_seq = "text_encoder->text_encoder_2->image_encoder->vae->transformer->vae"
 
     def __init__(
         self,

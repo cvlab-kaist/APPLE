@@ -1,6 +1,12 @@
 import os
+os.environ['HF_HUB_DISABLE_XET'] = '1'
 os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
-os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+from pulid.utils import resize_numpy_image_long
+from flux.sampling import denoise, get_noise, get_schedule, prepare, unpack, prepare_img, prepare_txt
+from diffusers import FluxPipeline
+from pipeline_flux_ca import FluxPipelineCA
+from omini.pipeline.flux_omini import generate_ca, Condition, convert_to_condition
 from transformer_flux_ca import FluxTransformer2DModelCA, FluxTransformer2DModel
 # from diffusers import FluxTransformer2DModel
 import torch
@@ -19,39 +25,35 @@ transformer = FluxTransformer2DModelCA.from_pretrained("black-forest-labs/FLUX.1
 # no grad
 torch.set_grad_enabled(False)
 
-from pulid.utils import resize_numpy_image_long
-from flux.sampling import denoise, get_noise, get_schedule, prepare, unpack, prepare_img, prepare_txt
-from diffusers import FluxPipeline
-from pipeline_flux_ca import FluxPipelineCA
-from omini.pipeline.flux_omini import generate_ca, Condition, convert_to_condition
 
 
-flux = FluxPipelineCA.from_pretrained("black-forest-labs/FLUX.1-Krea-dev", transformer=transformer, torch_dtype=weight_dtype).to(device)
+
+flux = FluxPipelineCA.from_pretrained("black-forest-labs/FLUX.1-Krea-dev", transformer=transformer, torch_dtype=weight_dtype, low_cpu_mem_usage=False, device_map=None).to(device)
 
 
 # ckpt = 43000
-# lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_scratch_lora64_20251004-005548/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/media/cvlab17_data2//jiwon/OminiControl/runs/faceswap_scratch_lora64_20251004-005548/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/pulid_omini_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}/ffhq_eval'
 
 # ckpt = 60000
-# lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_20251010-115546/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/media/cvlab17_data2//jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_20251010-115546/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/pulid_omini_vgg_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 
 # ckpt = 8000
-# lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_20251014-014645/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/media/cvlab17_data2//jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_20251014-014645/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/pulid_omini_vgg_idLoss_t<=0.33_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 
 # ckpt = 8000
-# lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_t<=0.5_20251014-021510/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/media/cvlab17_data2//jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_t<=0.5_20251014-021510/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/pulid_omini_vgg_idLoss_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 
 ckpt = 80000
-lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_20251014-162532/ckpt/{ckpt}/default.safetensors'
+lora_file_path = f'/media/cvlab17_data2//jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_20251014-162532/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 output_dir = f'./results_test'
 
 # ckpt = 8000
-# lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt60000_gaze_20251018-024629/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/media/cvlab17_data2//jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt60000_gaze_20251018-024629/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt60000_gaze_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 
 adapter_name = 'default'
@@ -72,6 +74,7 @@ if use_gaze:
 # from mmgp import offload, profile_type
 # offload.profile(flux, profile_type.HighRAM_HighVRAM)
 flux.enable_model_cpu_offload()
+# flux.enable_sequential_cpu_offload()
 
 
 import cv2
@@ -82,8 +85,8 @@ from PIL import Image
 # output_dir = './results_pulid_omini/vgg_src/clsUncond_hiddenUncond'
 os.makedirs(output_dir, exist_ok=True)
 
-src_img_path_list = sorted(glob('/mnt/data2/dataset/ffhq_eval/src/*.jpg'))
-trg_img_path_base = '/mnt/data2/dataset/ffhq_eval/trg'
+src_img_path_list = sorted(glob('/media/cvlab17_data2//dataset/ffhq_eval/src/*.jpg'))
+trg_img_path_base = '/media/cvlab17_data2//dataset/ffhq_eval/trg'
 
 # for id_guidance_scale in [1.0]:
 # for id_guidance_scale in [1.5]:
@@ -178,6 +181,7 @@ for id_guidance_scale in [1.0]:
                 image_guidance_scale=image_guidance_scale,
                 id_guidance_scale=id_guidance_scale,
                 gaze_embed=gaze_embed,
+                execution_device=execution_device
             )
 
         # img = flux(

@@ -1,7 +1,7 @@
 # %%
 import os
 os.environ['HF_HUB_DISABLE_XET'] = '1'
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"  # Change the value to select a different GPU
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Change the value to select a different GPU
 import torch
 from diffusers import FluxPipeline
 
