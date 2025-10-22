@@ -4,21 +4,6 @@ import torch
 import torch.distributed as dist
 from transformer_flux_ca import FluxTransformer2DModelCA
 # from diffusers import FluxTransformer2DModel
-import random
-import numpy as np
-import cv2
-from glob import glob
-from tqdm import tqdm
-from PIL import Image
-
-def seed_everything(seed: int = 42):
-    torch.backends.cudnn.deterministic = True
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-
-seed_everything(42)
-
 
 # --- Distributed setup ---
 local_rank = int(os.environ["LOCAL_RANK"])
@@ -71,7 +56,7 @@ flux = FluxPipelineCA.from_pretrained("black-forest-labs/FLUX.1-Krea-dev", trans
 ckpt = 80000
 lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_20251014-162532/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
-output_dir = f'/mnt/data6/vgg_swapped/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/'
+output_dir = f'/mnt/data6/ffhq_swapped/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/'
 
 # ckpt = 8000
 # lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt60000_gaze_20251018-024629/ckpt/{ckpt}/default.safetensors'
@@ -95,78 +80,26 @@ flux.set_progress_bar_config(disable=True)
 # flux.transformer = torch.compile(flux.transformer, mode="reduce-overhead", fullgraph=True)
 
 
-os.makedirs(output_dir, exist_ok=True)
 
-import os, json, random, csv
-from pathlib import Path
-from collections import defaultdict
+import cv2
+from glob import glob
+from tqdm import tqdm
+from PIL import Image
+
+if rank == 0:
+    os.makedirs(output_dir, exist_ok=True)
+
 from natsort import natsorted
+all_imgs_list = natsorted(glob('/mnt/data2/dataset/datasets/rahulbhalley/ffhq-1024x1024/versions/1/images1024x1024/*.png'))
+src_img_path_list_full = all_imgs_list[:-1]
+trg_img_path_list_full = all_imgs_list[1:]
 
+# # 순서 반대로
+# src_img_path_list_full = src_img_path_list_full[::-1]
+# trg_img_path_list_full = trg_img_path_list_full[::-1]
 
-import json
-random.seed(42)
-
-dataset_path = "/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan"
-json_path = os.path.join(dataset_path, "score.json")
-
-# 1) AES 필터링된 이미지 리스트 만들기
-with open(json_path, "r") as f:
-    score_dict = json.load(f)
-
-training_base_list = set(os.listdir(dataset_path))  # 폴더 이름들 (n000001 ...)
-high_aes_keys = [k for k, v in score_dict.items() if v.get("aes", -1) > 5.5]
-
-# 키 형식이 "n000008/0145_01" 같은 경우를 가정해 .jpg 경로 구성
-img_list = []
-for k in high_aes_keys:
-    rel = k + ".jpg"  # e.g., "n000008/0145_01.jpg"
-    full = os.path.join(dataset_path, rel)
-    # 폴더가 실제로 존재하고 파일도 존재하는 경우만
-    if os.path.exists(full) and rel.split("/")[0] in training_base_list:
-        img_list.append(full)
-
-print(f"AES>5.5 통과 이미지: {len(img_list)}")
-
-# 2) {id: [imgs]} 생성 (id는 폴더명)
-id_to_images = defaultdict(list)
-for p in img_list:
-    id_str = os.path.basename(os.path.dirname(p))  # n000008
-    id_to_images[id_str].append(p)
-
-# 3) 각 id 내부 정렬 + 빈 id 제거
-for k in list(id_to_images.keys()):
-    id_to_images[k] = natsorted(id_to_images[k])
-    if len(id_to_images[k]) == 0:
-        del id_to_images[k]
-
-print(f"사용 가능한 ID 수: {len(id_to_images)}")
-
-# 4) 균등 id 샘플링으로 pair 만들기 (src_id != trg_id)
-ids = natsorted(id_to_images.keys())
-N = len(ids)
-assert N > 1
-
-total_length = 35_000
-pairs = set()  # ← 중복 방지용 set
-
-rng = random.Random(42)
-while len(pairs) < total_length:
-    si = rng.randrange(N)
-    ti = rng.randrange(N - 1)
-    if ti >= si:
-        ti += 1
-
-    src_id, trg_id = ids[si], ids[ti]
-    src_path = rng.choice(id_to_images[src_id])
-    trg_path = rng.choice(id_to_images[trg_id])
-    pair = (src_path, trg_path)
-
-    if pair not in pairs:
-        pairs.add(pair)
-
-path_pairs = natsorted(list(pairs))
-print(f"✅ {len(path_pairs)} unique pairs generated (no duplicates)")
-
+# Create pairs
+path_pairs = list(zip(src_img_path_list_full, trg_img_path_list_full))
 
 # Distribute pairs
 distributed_pairs = path_pairs[rank::world_size]
@@ -185,20 +118,16 @@ for src_img_path, trg_img_path in tqdm(zip(src_img_path_list, trg_img_path_list)
     use_true_cfg = True if true_cfg > 1.0 else False
 
     src_num = os.path.basename(src_img_path).split('.')[0]
-    src_id = os.path.basename(os.path.dirname(src_img_path))
     trg_num = os.path.basename(trg_img_path).split('.')[0]
-    trg_id = os.path.basename(os.path.dirname(trg_img_path))
-    # Continue if exists
-    img_save_fname = f"{output_dir}/{src_id}_{src_num}_{trg_id}_{trg_num}.png"
-    grid_save_fname = f"{output_dir}/grid/{src_id}_{src_num}_{trg_id}_{trg_num}_grid.png"
-    if os.path.exists(img_save_fname):
-        print(f"Image {img_save_fname} already exists. Skipping...")
-        continue
-
     trg_img_path_base = os.path.dirname(trg_img_path)
     trg_img_path = os.path.join (trg_img_path_base, 'condition_blended_image_blurdownsample8_segGlass_landmark', f"{trg_num}.png")
     condition_img = Image.open(trg_img_path).convert('RGB')
 
+    # Continue if exists
+    img_save_fname = f"{output_dir}/{src_num}.png"
+    if os.path.exists(img_save_fname):
+        print(f"Image {img_save_fname} already exists. Skipping...")
+        continue
 
     # 시간 재기
     start_time = torch.cuda.Event(enable_timing=True)
@@ -290,14 +219,14 @@ for src_img_path, trg_img_path in tqdm(zip(src_img_path_list, trg_img_path_list)
     #     id_embed=id_embeddings,
     #     uncond_id_embed=uncond_id_embeddings,
     # )
-    print(f"GPU {rank} :  Saving image to {img_save_fname}")
+    print(f"GPU {rank} :  Saving image to {output_dir}/{src_num}.png")
     image = img.images[0] if isinstance(img.images, list) else img.images
-    image.save(img_save_fname)
+    image.save(f"{output_dir}/{src_num}.png")
     # condition_img.save(f"{output_dir}/{src_num}_cond.png")
 
     grid = make_image_grid([id_image_pil, condition_img, image], rows=1, cols=3)
     os.makedirs(f"{output_dir}/grid", exist_ok=True)
-    grid.save(grid_save_fname)
+    grid.save(f"{output_dir}/grid/{src_num}_grid.png")
 
     # 시간 재기 끝
     end_time.record()
