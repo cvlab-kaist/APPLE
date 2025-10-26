@@ -181,6 +181,7 @@ class VGGDataset(torch.utils.data.Dataset):
             # training_base_list = list(natsorted(os.listdir(dataset_path)))[:-2000] # 마지막 2000개는 validation set으로 사용
             high_aes_keys = [k for k, v in score_dict.items() if v['aes'] > 5.5]
             img_list = [os.path.join(dataset_path, k + '.jpg') for k in high_aes_keys if k.split('/')[0] in training_base_list] 
+            print(f"[DEBUG] Sample Image List : {img_list[:5]}")
             # img_list = natsorted(img_list)[:1000] # for debugging, limit to 1000 images
             print(f"Filtered images based on AES score > 5.5: {len(img_list)} images remain.")
 
@@ -265,6 +266,14 @@ class VGGDataset(torch.utils.data.Dataset):
             self.id_embed_paths = id_embed_list
             self.controlnet_paths = condition_list
             self.gaze_paths = gaze_paths
+
+            # DEBUG 5개씩
+            print(f"[DEBUG] Sample src_img_list : {self.src_img_list[:5]}")
+            print(f"[DEBUG] Sample image_paths : {self.image_paths[:5]}")
+            print(f"[DEBUG] Sample id_embed_paths : {self.id_embed_paths[:5]}")
+            print(f"[DEBUG] Sample controlnet_paths : {self.controlnet_paths[:5]}")
+            if gaze_paths is not None:
+                print(f"[DEBUG] Sample gaze_paths : {self.gaze_paths[:5]}")
             
             self.uncond_id_embed = torch.Tensor(np.load(uncond_id_embed_path))
 

@@ -9,3 +9,5 @@ __pycache__/
 inversion*/
 runs/
 other_models/
+*.onnx
+*.sh

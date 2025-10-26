@@ -124,9 +124,9 @@ class OminiModel(L.LightningModule):
         self.train_lpips_loss = train_lpips_loss
         self.lpips_weight = lpips_weight
         self.lpips_loss_thres = lpips_loss_thres
+        import lpips
+        self.lpips_loss_fn = lpips.LPIPS(net='vgg')
         if self.train_lpips_loss:
-            import lpips
-            self.lpips_loss_fn = lpips.LPIPS(net='vgg')
             print(f"[INFO] LPIPS loss training enabled. Weight: {self.lpips_weight}, Threshold: t <= {self.lpips_loss_thres}")
 
         # add pulid training
@@ -216,6 +216,8 @@ class OminiModel(L.LightningModule):
         if self.train_gaze_loss :
             self.GazeTR.to(*args)
         # self.lora_layers = [p.to(*args) for p in self.lora_layers]
+        if self.train_lpips_loss:
+            self.lpips_loss_fn.to(*args)
         return self
 
     def init_lora(self, lora_path: str, lora_config: dict):
@@ -523,7 +525,8 @@ class OminiModel(L.LightningModule):
             pred_x0 = self.flux_pipe._unpack_latents(pred_x0, height, width, self.flux_pipe.vae_scale_factor)
             pred_x0 = (pred_x0 / self.flux_pipe.vae.config.scaling_factor) + self.flux_pipe.vae.config.shift_factor
             image = self.flux_pipe.vae.decode(pred_x0, return_dict=False)[0] # [-1, 1]
-            x_in = self.flux_pipe.image_processor.postprocess(image, output_type='pt', do_denormalize=[False]) # [-1, 1] ??? 아무것도 안하는 코드인데 내가 왜넣은거임
+            # x_in = self.flux_pipe.image_processor.postprocess(image, output_type='pt', do_denormalize=[False]) # [-1, 1] ??? 아무것도 안하는 코드인데 내가 왜넣은거임
+            x_in = image # [-1, 1]
 
             # DEBUG
             # image_pil = self.flux_pipe.image_processor.postprocess(image.detach(), output_type='pil') # List[PIL.Image]
