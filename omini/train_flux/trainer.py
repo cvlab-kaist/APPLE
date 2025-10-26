@@ -84,7 +84,7 @@ class OminiModel(L.LightningModule):
 
 
         # Load the Flux pipeline
-        self.transformer: FluxTransformer2DModelCA = FluxTransformer2DModelCA.from_pretrained(flux_pipe_id, torch_dtype=dtype, subfolder='transformer', low_cpu_mem_usage=False, device_map=None, use_netarc=use_netarc, use_irse50=use_irse50, use_gaze=train_gaze, gaze_conditioning_type=train_gaze_type ,gaze_type=gaze_type)
+        self.transformer: FluxTransformer2DModelCA = FluxTransformer2DModelCA.from_pretrained(flux_pipe_id, torch_dtype=dtype, subfolder='transformer', low_cpu_mem_usage=False, device_map=None, use_netarc=use_netarc, use_irse50=use_irse50, use_gaze=train_gaze, gaze_conditioning_type=train_gaze_type ,gaze_type=gaze_type, local_rank=get_rank())
         # self.transformer#.to(device)
 
         self.flux_pipe: FluxPipeline = FluxPipeline.from_pretrained(
@@ -430,7 +430,7 @@ class OminiModel(L.LightningModule):
             group_mask=group_mask,
             id_embed=id_embed.to(self.flux_pipe.dtype),
             id_weight=1.0,
-            gaze_embed=gaze_embed.to(self.flux_pipe.dtype),
+            gaze_embed=gaze_embed.to(self.flux_pipe.dtype) if gaze_embed is not None else None,
             gaze_weight=1.0,
         )
         pred = transformer_out[0]
@@ -718,7 +718,7 @@ def train(dataset, trainable_model, config, test_function):
 
     training_config = config["train"]
     run_name = training_config.get("run_name", None)
-    run_name = run_name + '_' + time.strftime("%Y%m%d-%H%M%S")
+    # run_name = run_name + '_' + time.strftime("%Y%m%d-%H%M%S")
 
     # Initialize WanDB
     wandb_config = training_config.get("wandb", None)
@@ -760,7 +760,7 @@ def train(dataset, trainable_model, config, test_function):
     # Save the training config
     save_path = training_config.get("save_path", "./output")
     if is_main_process:
-        os.makedirs(f"{save_path}/{run_name}")
+        os.makedirs(f"{save_path}/{run_name}", exist_ok=True)
         with open(f"{save_path}/{run_name}/config.yaml", "w") as f:
             yaml.dump(config, f)
 

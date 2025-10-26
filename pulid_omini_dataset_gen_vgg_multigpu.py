@@ -53,28 +53,28 @@ flux = FluxPipelineCA.from_pretrained("black-forest-labs/FLUX.1-Krea-dev", trans
 
 
 # ckpt = 43000
-# lora_file_path = f'/mnt/cvlab17_data2/jiwon/OminiControl/runs/faceswap_scratch_lora64_20251004-005548/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/mnt/data3/jiwon/OminiControl/runs/faceswap_scratch_lora64_20251004-005548/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/pulid_omini_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}/ffhq_eval'
 
 # ckpt = 60000
-# lora_file_path = f'/mnt/cvlab17_data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_20251010-115546/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/mnt/data3/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_20251010-115546/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/pulid_omini_vgg_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 
 # ckpt = 8000
-# lora_file_path = f'/mnt/cvlab17_data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_20251014-014645/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/mnt/data3/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_20251014-014645/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/pulid_omini_vgg_idLoss_t<=0.33_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 
 # ckpt = 8000
-# lora_file_path = f'/mnt/cvlab17_data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_t<=0.5_20251014-021510/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/mnt/data3/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_t<=0.5_20251014-021510/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/pulid_omini_vgg_idLoss_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 
 ckpt = 80000
-lora_file_path = f'/mnt/cvlab17_data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_20251014-162532/ckpt/{ckpt}/default.safetensors'
+lora_file_path = f'/mnt/data3/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_20251014-162532/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
-output_dir = f'/mnt/cvlab17_data6/vgg_swapped/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/'
+output_dir = f'/mnt/data6/vgg_swapped2/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/'
 
 # ckpt = 8000
-# lora_file_path = f'/mnt/cvlab17_data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt60000_gaze_20251018-024629/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/mnt/data3/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt60000_gaze_20251018-024629/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt60000_gaze_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 
 adapter_name = 'default'
@@ -106,9 +106,9 @@ from natsort import natsorted
 import json
 random.seed(42)
 
-dataset_path = "/mnt/cvlab17_data2/dataset/VGGface2_None_norm_512_true_bygfpgan"
+dataset_path = "/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan"
 json_path = os.path.join(dataset_path, "score.json")
-path_pairs_path = os.path.join(dataset_path, "pairs.pt")
+path_pairs_path = os.path.join(output_dir, "pairs.pt")
 
 if not os.path.exists(path_pairs_path):
     # 1) AES 필터링된 이미지 리스트 만들기
@@ -149,10 +149,12 @@ if not os.path.exists(path_pairs_path):
     assert N > 1
 
     total_length = 35_000
+    start = 35_000
     pairs = set()  # ← 중복 방지용 set
 
     rng = random.Random(42)
-    while len(pairs) < total_length:
+    progress_bar = tqdm(total=total_length, desc="Generating unique pairs")
+    while len(pairs) < start+total_length:
         si = rng.randrange(N)
         ti = rng.randrange(N - 1)
         if ti >= si:
@@ -165,8 +167,8 @@ if not os.path.exists(path_pairs_path):
 
         if pair not in pairs:
             pairs.add(pair)
-
-    path_pairs = natsorted(list(pairs))
+            progress_bar.update(1)
+    path_pairs = natsorted(list(pairs))[start:start+total_length]
     print(f"✅ {len(path_pairs)} unique pairs generated (no duplicates)")
     torch.save(path_pairs, path_pairs_path)
     print(f"Saved pairs to {path_pairs_path}")

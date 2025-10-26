@@ -14,6 +14,7 @@ from ..pipeline.flux_omini import Condition, convert_to_condition, generate_ca
 
 from glob import glob
 from natsort import natsorted
+from tqdm import tqdm
 
 class FFHQDataset(torch.utils.data.Dataset):
 
@@ -119,80 +120,193 @@ class VGGDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         dataset_path='/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan',
+        swapped_path= '/mnt/data6/vgg_swapped/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt80000_gs1.0_imgGS1.0_idGS1.0',
         num_validation = 5,
         mode = 'train',
         condition_type = 'condition_blended_image_blurdownsample8_segGlass_landmark',
+        train_gaze = False,
         gaze_type = 'unigaze',
+        pseudo = False,
+        id_from = 'original', # options: ['original', 'masked']
+        swapped_condition_type = None, # options: [None, 'condition_pose']
 
     ):
-
         self.dataset_path = dataset_path
-        # img_list = sorted(glob(f"{dataset_path}/*/*.jpg"))
+        self.train_gaze = train_gaze
+        self.swapped_condition_type = swapped_condition_type
 
-        # AES Score 기준으로 필터링
-        import json
-        json_path = '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/score.json'
-        with open(json_path, 'r') as f:
-            score_dict = json.load(f)
-
-        training_base_list = list(natsorted(os.listdir(dataset_path)))[:-2000] # 마지막 2000개는 validation set으로 사용
-        high_aes_keys = [k for k, v in score_dict.items() if v['aes'] > 5.5]
-        img_list = [os.path.join(dataset_path, k + '.jpg') for k in high_aes_keys if os.path.exists(os.path.join(dataset_path, k + '.jpg')) and k.split('/')[0] in training_base_list] 
-        # img_list = natsorted(img_list)[:1000] # for debugging, limit to 1000 images
-        print(f"Filtered images based on AES score > 5.5: {len(img_list)} images remain.")
-
-        random.seed(0)
-        random.shuffle(img_list)
-        if mode == 'train':
-            img_list = img_list[:-num_validation]
+        if id_from == 'original':
+            id_dirname = 'pulid_id'
+        elif id_from == 'masked':
+            id_dirname = 'masked_pulid_id'
         else:
-            img_list = img_list[-num_validation:]
-        
-        dirname_list = [os.path.dirname(f) for f in img_list]
-        basename_list = [os.path.basename(f).split('.')[0] for f in img_list]
-        gaze_paths = [os.path.join(dataset_path, dirname, gaze_type, f"{basename}.npy") for (dirname, basename) in zip(dirname_list, basename_list) ]
-        print(f"[INFO] Using gaze type: {gaze_type}")
+            raise ValueError(f"Invalid id_from value: {id_from}")
 
-        # imgs_list를 gaze_path 기준으로 다시 필터링 : gaze가 안된 이미지 (e.g. 80도 이상)도 존재
-        img_list = [img for img, gaze_path in zip(img_list, gaze_paths) if os.path.exists(gaze_path)]   
-        gaze_paths = [gaze_path for gaze_path in gaze_paths if os.path.exists(gaze_path)]
-        dirname_list = [os.path.dirname(f) for f in img_list]
-        basename_list = [os.path.basename(f).split('.')[0] for f in img_list]
+        if not pseudo:
+            print("[INFO] Using real dataset with for VGGDataset")
+            print(f"[INFO] 1st Stage Training")
+            
+            # AES Score 기준으로 필터링
+            import json
+            json_path = os.path.join(dataset_path, 'score.json')
+            with open(json_path, 'r') as f:
+                score_dict = json.load(f)
 
-        print(f"[INFO] After filtering based on gaze paths: {len(img_list)} images remain.")
+            training_base_list = list(natsorted(os.listdir(dataset_path)))[:-2000] # 마지막 2000개는 validation set으로 사용
+            high_aes_keys = [k for k, v in score_dict.items() if v['aes'] > 5.5]
+            img_list = [os.path.join(dataset_path, k + '.jpg') for k in high_aes_keys if os.path.exists(os.path.join(dataset_path, k + '.jpg')) and k.split('/')[0] in training_base_list] 
+            # img_list = natsorted(img_list)[:1000] # for debugging, limit to 1000 images
+            print(f"Filtered images based on AES score > 5.5: {len(img_list)} images remain.")
 
-        # 모든 gaze path가 존재하는지 확인
-        for gaze_path in gaze_paths:
-            if not os.path.exists(gaze_path):
-                raise ValueError(f"Gaze path does not exist: {gaze_path}")
+            random.seed(0)
+            random.shuffle(img_list)
+            if mode == 'train':
+                img_list = img_list[:-num_validation]
+            else:
+                img_list = img_list[-num_validation:]
+            
+            dirname_list = [os.path.dirname(f) for f in img_list]
+            basename_list = [os.path.basename(f).split('.')[0] for f in img_list]
+            gaze_paths = [os.path.join(dataset_path, dirname, gaze_type, f"{basename}.npy") for (dirname, basename) in zip(dirname_list, basename_list) ]
+            print(f"[INFO] Using gaze type: {gaze_type}")
+
+            # imgs_list를 gaze_path 기준으로 다시 필터링 : gaze가 안된 이미지 (e.g. 80도 이상)도 존재
+            img_list = [img for img, gaze_path in zip(img_list, gaze_paths) if os.path.exists(gaze_path)]   
+            gaze_paths = [gaze_path for gaze_path in gaze_paths if os.path.exists(gaze_path)]
+            dirname_list = [os.path.dirname(f) for f in img_list]
+            basename_list = [os.path.basename(f).split('.')[0] for f in img_list]
+
+            print(f"[INFO] After filtering based on gaze paths: {len(img_list)} images remain.")
+
+            # 모든 gaze path가 존재하는지 확인
+            for gaze_path in gaze_paths:
+                if not os.path.exists(gaze_path):
+                    raise ValueError(f"Gaze path does not exist: {gaze_path}")
 
 
-        # Source의 Image 및 ID embed 설정
-        # target과 동일한 인물 내에서 랜덤하게 하나 선택
-        # id_embed_list = [os.path.join(dataset_path, dirname, 'pulid_id', f"{basename}.npy") for (dirname, basename) in zip(dirname_list, basename_list)]
-        src_img_list = []
-        id_embed_list = []
-        for (dirname, basename) in zip(dirname_list, basename_list):
-            id_embed_candidates = glob(os.path.join(dataset_path, dirname, 'pulid_id', '*.npy'))
-            if len(id_embed_candidates) == 0:
-                raise ValueError(f"No id embed found for {dirname}/{basename}")
-            selected_id_embed = random.choice(id_embed_candidates)
-            id_embed_list.append(selected_id_embed)
-            src_img_list.append(os.path.join(dataset_path, dirname, os.path.basename(selected_id_embed).replace('.npy', '.jpg')))
+            # Source의 Image 및 ID embed 설정
+            # target과 동일한 인물 내에서 랜덤하게 하나 선택
+            # id_embed_list = [os.path.join(dataset_path, dirname, 'pulid_id', f"{basename}.npy") for (dirname, basename) in zip(dirname_list, basename_list)]
+            src_img_list = []
+            id_embed_list = []
+            effective_dirname_list = []
+            effective_basename_list = []
+            for (dirname, basename) in zip(dirname_list, basename_list):
+                id_embed_candidates = glob(os.path.join(dataset_path, dirname, id_dirname, '*.npy'))
+                if len(id_embed_candidates) == 0:
+                    continue
+                else :
+                    effective_dirname_list.append(dirname)
+                    effective_basename_list.append(basename)
+                    selected_id_embed = random.choice(id_embed_candidates)
+                    id_embed_list.append(selected_id_embed)
+                    src_img_list.append(os.path.join(dataset_path, dirname, os.path.basename(selected_id_embed).replace('.npy', '.jpg')))
+            dirname_list = effective_dirname_list
+            basename_list = effective_basename_list
+            img_list = [os.path.join(dataset_path, dirname, f"{basename}.jpg") for (dirname, basename) in zip(dirname_list, basename_list)]
 
-        uncond_id_embed_path = '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000002/pulid_id/uncond.npy'
-        condition_list = [os.path.join(dataset_path, dirname, condition_type, basename + '.png') for (dirname, basename) in zip(dirname_list, basename_list)]
+            uncond_id_embed_path = os.path.join(dataset_path, 'n000002/pulid_id/uncond.npy')
+            condition_list = [os.path.join(dataset_path, dirname, condition_type, basename + '.png') for (dirname, basename) in zip(dirname_list, basename_list)]
 
-        self.src_img_list = src_img_list
-        self.image_paths = img_list
-        self.id_embed_paths = id_embed_list
-        self.controlnet_paths = condition_list
-        self.gaze_paths = gaze_paths
-        
-        self.uncond_id_embed = torch.Tensor(np.load(uncond_id_embed_path))
+            self.src_img_list = src_img_list
+            self.image_paths = img_list
+            self.id_embed_paths = id_embed_list
+            self.controlnet_paths = condition_list
+            self.gaze_paths = gaze_paths
+            
+            self.uncond_id_embed = torch.Tensor(np.load(uncond_id_embed_path))
 
-        assert len(self.image_paths) == len(self.id_embed_paths)
-        assert len(self.image_paths) == len(self.controlnet_paths)
+            assert len(self.image_paths) == len(self.id_embed_paths)
+            assert len(self.image_paths) == len(self.controlnet_paths)
+
+            print(f"[INFO] Real dataset size: {len(self.image_paths)} images.")
+        else :
+            print(f"[INFO] Using pseudo dataset for VGGDataset, condition type: {self.swapped_condition_type}")
+            if self.swapped_condition_type is not None:
+                swapped_path = os.path.join(swapped_path, self.swapped_condition_type)
+
+            if train_gaze:
+                raise NotImplementedError("Pseudo dataset with gaze conditioning not implemented yet.")
+
+            self.swapped_trg_path = swapped_path
+            swapped_trg_imgs = natsorted(glob(f"{self.swapped_trg_path}/*.png")) # .../ n006195_0211_01_n006500_0203_02.png -> {src_id}_{src_num}_{trg_id}_{trg_num}.png
+            print(f"[INFO] Found {len(swapped_trg_imgs)} swapped images in {self.swapped_trg_path}")
+            
+            # 파싱
+            import re
+            pattern = r"^(n\d{6})_(\d{4}_\d{2})_(n\d{6})_(\d{4}_\d{2})\.png$"
+            src_ids, src_nums, trg_ids, trg_nums = [], [], [], []    
+            for trg_img_path in tqdm(swapped_trg_imgs, desc="Parsing swapped image filenames"):
+                filename = os.path.basename(trg_img_path)
+                match = re.match(pattern, filename)
+                if match:
+                    src_id, src_num, trg_id, trg_num = match.groups()
+                    src_ids.append(src_id)
+                    src_nums.append(src_num)
+                    trg_ids.append(trg_id)
+                    trg_nums.append(trg_num)
+                else:
+                    raise ValueError(f"Filename does not match pattern: {filename}")
+            
+            # ID 임베딩 준비, trg_id마다 랜덤한 ID 임베딩 선택
+            src_img_list = []
+            id_embed_list = []
+            controlnet_list = []
+            controlnet_ids = []
+            controlnet_nums = []
+            id_embed_candidates_cache = {} # 캐시
+            for trg_id in tqdm(set(trg_ids)): # 캐싱
+                id_embed_candidates = glob(os.path.join(dataset_path, trg_id, id_dirname, '*.npy')) #
+                id_embed_candidates_cache[trg_id] = id_embed_candidates
+            for idx, (trg_id, trg_num) in tqdm(enumerate(zip(trg_ids, trg_nums)), desc="Preparing pseudo dataset"):
+                id_embed_candidates = id_embed_candidates_cache[trg_id]
+                # 자기 자신 제외
+                id_embed_candidates = [p for p in id_embed_candidates if os.path.basename(p) != f"{trg_num}.npy"]
+                if len(id_embed_candidates) == 0:
+                    continue
+                else :
+                    # Select candidate
+                    selected_id_embed = random.choice(id_embed_candidates)
+                    # Select src img / ID embed
+                    src_img_list.append(os.path.join(dataset_path, trg_id, os.path.basename(selected_id_embed).replace('.npy', '.jpg')))
+                    id_embed_list.append(selected_id_embed)
+                    controlnet_list.append(swapped_trg_imgs[idx])
+                    controlnet_ids.append(trg_id)
+                    controlnet_nums.append(trg_num)
+
+            print(f"[INFO] Pseudo dataset prepared with {len(id_embed_list)} samples.")
+
+            # GT target 
+            trg_list = [os.path.join(dataset_path, trg_id, f"{trg_num}.jpg") for (trg_id, trg_num) in zip(controlnet_ids, controlnet_nums)]
+
+            uncond_id_embed_path = os.path.join(dataset_path, 'n000002/pulid_id/uncond.npy')
+
+            # Final
+            self.src_img_list = src_img_list # Source (ID embed용)
+            self.id_embed_paths = id_embed_list
+            self.controlnet_paths = controlnet_list # Condition : swapped image
+            self.image_paths = trg_list # GT target
+            self.uncond_id_embed = torch.Tensor(np.load(uncond_id_embed_path))
+            
+            assert len(self.image_paths) == len(self.id_embed_paths)
+            assert len(self.image_paths) == len(self.controlnet_paths)
+            assert len(self.image_paths) == len(self.src_img_list)
+
+            
+            if mode == 'train':
+                self.image_paths = self.image_paths[:-num_validation]
+                self.id_embed_paths = self.id_embed_paths[:-num_validation]
+                self.controlnet_paths = self.controlnet_paths[:-num_validation]
+                self.src_img_list = self.src_img_list[:-num_validation]
+                print(f"[INFO] Pseudo dataset size: {len(self.image_paths)} images.")
+            else:
+                self.image_paths = self.image_paths[-num_validation:]
+                self.id_embed_paths = self.id_embed_paths[-num_validation:]
+                self.controlnet_paths = self.controlnet_paths[-num_validation:]
+                self.src_img_list = self.src_img_list[-num_validation:]
+                print(f"[INFO] Pseudo dataset size (validation): {len(self.image_paths)} images.")
+
+            
 
 
 
@@ -207,7 +321,7 @@ class VGGDataset(torch.utils.data.Dataset):
                 img = Image.open(self.image_paths[idx]).convert('RGB')
                 controlnet_img = Image.open(self.controlnet_paths[idx]).convert('RGB')
                 face_id_embed = torch.Tensor(np.load(self.id_embed_paths[idx]))
-                gaze_embed = torch.Tensor(np.load(self.gaze_paths[idx]))
+                gaze_embed = torch.Tensor(np.load(self.gaze_paths[idx])) if self.train_gaze else None
                 # original_width, original_height = img.size
                 
 
@@ -245,6 +359,7 @@ class VGGDataset(torch.utils.data.Dataset):
                 #     text, self.text_encoders, self.tokenizers
                 # )
 
+
                 return {
                     "src_img": src_img,
                     "img": img,
@@ -255,7 +370,7 @@ class VGGDataset(torch.utils.data.Dataset):
                     "uncond_id_embed": self.uncond_id_embed,
                     # "drop_image_embed": drop_image_embed,
                     'controlnet_img': controlnet_img,
-                    "gaze_embed": gaze_embed,
+                    "gaze_embed": gaze_embed ,
                 }
 
             
@@ -334,7 +449,8 @@ class ImageConditionDataset(Dataset):
             image = base_dataset_item["img"]
             src_img = base_dataset_item.get('src_img', base_dataset_item['img']) # src_img이 없으면 그냥 img 사용
             image = image.resize(self.target_size).convert("RGB")
-            gaze_embed = base_dataset_item['gaze_embed'].squeeze()
+            gaze_embed = base_dataset_item.get('gaze_embed', None)
+            gaze_embed = gaze_embed.squeeze() if gaze_embed is not None else None
             # description = base_dataset_item["json"]["prompt"] 
             description = 'a photo of human face' # using fixed prompt for face swap
 
@@ -362,7 +478,7 @@ class ImageConditionDataset(Dataset):
                 condition_img = Image.new("RGB", condition_size, (0, 0, 0))
             if drop_id:
                 id_embed = uncond_id_embed
-            if drop_gaze:
+            if drop_gaze and gaze_embed is not None:
                 gaze_embed = torch.zeros_like(gaze_embed)
         except Exception as e:
             # In case of error, return a random item
@@ -380,8 +496,8 @@ class ImageConditionDataset(Dataset):
             "description": description,
             "id_embed": id_embed,
             'uncond_id_embed': uncond_id_embed,
-            "gaze_embed": gaze_embed,
             "drop_gaze" : drop_gaze, # type : bool
+            **({"gaze_embed": gaze_embed} if gaze_embed is not None else {}),
             **({"pil_image": [image, condition_img]} if self.return_pil_image else {}),
             **({"position_scale_0": position_scale} if position_scale != 1.0 else {}),
         }
@@ -392,49 +508,6 @@ class ImageConditionDataset(Dataset):
 def test_function(model, save_path, file_name, test_dataset):
     print(f"[DEBUG] In test_function, LoRA weight mean: {model.transformer.transformer_blocks[0].attn.to_q.lora_A['default'].weight.data.mean()}")
 
-    # condition_size = model.training_config["dataset"]["condition_size"]
-    # target_size = model.training_config["dataset"]["target_size"]
-
-    # position_delta = model.training_config["dataset"].get("position_delta", [0, 0])
-    # position_scale = model.training_config["dataset"].get("position_scale", 1.0)
-
-    # adapter = model.adapter_names[2]
-    # condition_type = model.training_config["condition_type"]
-    # test_list = []
-
-    # if condition_type in ["canny", "coloring", "deblurring", "depth"]:
-    #     image = Image.open("assets/vase_hq.jpg")
-    #     image = image.resize(condition_size)
-    #     condition_img = convert_to_condition(condition_type, image, 5)
-    #     condition = Condition(condition_img, adapter, position_delta, position_scale)
-    #     test_list.append((condition, "A beautiful vase on a table."))
-    # elif condition_type == "depth_pred":
-    #     image = Image.open("assets/vase_hq.jpg")
-    #     image = image.resize(condition_size)
-    #     condition = Condition(image, adapter, position_delta, position_scale)
-    #     test_list.append((condition, "A beautiful vase on a table."))
-    # elif condition_type == "fill":
-    #     condition_img = (
-    #         Image.open("./assets/vase_hq.jpg").resize(condition_size).convert("RGB")
-    #     )
-    #     mask = Image.new("L", condition_img.size, 0)
-    #     draw = ImageDraw.Draw(mask)
-    #     a = condition_img.size[0] // 4
-    #     b = a * 3
-    #     draw.rectangle([a, a, b, b], fill=255)
-    #     condition_img = Image.composite(
-    #         condition_img, Image.new("RGB", condition_img.size, (0, 0, 0)), mask
-    #     )
-    #     condition = Condition(condition, adapter, position_delta, position_scale)
-    #     test_list.append((condition, "A beautiful vase on a table."))
-    # elif condition_type == "super_resolution":
-    #     image = Image.open("assets/vase_hq.jpg")
-    #     image = image.resize(condition_size)
-    #     condition = Condition(image, adapter, position_delta, position_scale)
-    #     test_list.append((condition, "A beautiful vase on a table."))
-    # else:
-    #     raise NotImplementedError
-    
     os.makedirs(save_path, exist_ok=True)
 
     trg_imgs = []
@@ -504,6 +577,11 @@ def main():
     training_config = config["train"]
     torch.cuda.set_device(int(os.environ.get("LOCAL_RANK", 0)))
 
+    if config.get("debug", False):
+        config['accumulate_grad_batches'] = 1
+        training_config['dataset']['num_validation'] = 1
+        print("[DEBUG] Debug mode is ON: accumulate_grad_batches set to 1, num_validation set to 1")
+
     # Load dataset text-to-image-2M
     # dataset = load_dataset(
     #     "webdataset",
@@ -524,16 +602,27 @@ def main():
     print(f"[INFO] Using dataset type: {dataset_type}, with class {dataset_class}")
 
     train_dataset = dataset_class(
+        dataset_path=training_config["dataset"]["dataset_path"],
         mode='train',
         num_validation = training_config["dataset"].get("num_validation", 5),
         condition_type='condition_blended_image_blurdownsample8_segGlass_landmark',
         gaze_type=training_config.get("gaze_type", 'unigaze'),
+        pseudo=training_config["dataset"].get("pseudo", False),
+        swapped_path=training_config["dataset"].get("swapped_path", None),
+        id_from = training_config["dataset"].get("id_from", "original"),
+        swapped_condition_type=training_config["dataset"].get("swapped_condition_type", None),
+
     )
     test_dataset = dataset_class(
+        dataset_path=training_config["dataset"]["dataset_path"],
         mode='test',
         num_validation = training_config["dataset"].get("num_validation", 5),
         condition_type='condition_blended_image_blurdownsample8_segGlass_landmark',
         gaze_type=training_config.get("gaze_type", 'unigaze'),
+        pseudo=training_config["dataset"].get("pseudo", False),
+        swapped_path=training_config["dataset"].get("swapped_path", None),
+        id_from = training_config["dataset"].get("id_from", "original"),
+        swapped_condition_type=training_config["dataset"].get("swapped_condition_type", None),
     )
 
     # Initialize custom dataset

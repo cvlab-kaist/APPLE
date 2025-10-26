@@ -1,0 +1,94 @@
+flux_path: "black-forest-labs/FLUX.1-Krea-dev"
+dtype: "bfloat16"
+
+debug: false
+
+model:
+  independent_condition: false
+
+train:
+  accumulate_grad_batches: 4
+  dataloader_workers: 5
+  save_interval: 1000
+  sample_interval: 500
+  max_steps: -1
+  gradient_checkpointing: true # (Turn off for faster training)
+  save_path: "runs"
+  run_name: "pretrained[ffhq43k_vgg80k]_dataset[vgg_pseudo_condpose]_loss[maskid_irse50_t0.5]_train[omini]"
+  # ID loss training options
+  use_netarc: false # (Set to true when using ID loss with ArcFace resnet18)
+  use_irse50: true # (Set to true when using ID loss with IRSE50)
+  # OminiControl training options
+  train_omini: true
+  # ID CA and Encoder training options
+  train_pulid_enc: false
+  train_pulid_ca: false
+  # Gaze training options
+  train_gaze: false # Whether to train gaze conditioning or not
+  gaze_type: 'unigaze' # 'gaze' for GazeTR, 'unigaze' for UniGaze
+  train_gaze_type : 'omini' # 'CA' for CrossAttn, 'temb' for time embedding, 'omini' for OminiControl
+  train_gaze_loss: false
+  train_gaze_loss_type : 'pred' # 'feature' for feature L2 loss, 'pred' for (yaw, pitch) prediction loss
+
+  # Specify the type of condition to use. 
+  # Options: ["canny", "coloring", "deblurring", "depth", "depth_pred", "fill"]
+  condition_type: "deblurring"
+  dataset:
+    # Dataset configuration
+    name: 'vgg' # Options: ['vgg', 'ffhq']
+    dataset_path: "/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan" # Path to dataset
+    pseudo: true # Whether to use synthetic pseudo dataset
+    swapped_path: "/mnt/data6/vgg_swapped/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt80000_gs1.0_imgGS1.0_idGS1.0" # When using pseudo dataset, path to swapped images
+    swapped_condition_type: "condition_pose"  # [none, "condition_pose"] 
+    id_from: "masked" # Options: ["original", "masked"]
+    type: "img"
+    urls:
+      # (Uncomment the following lines to use more data)
+      # - "https://huggingface.co/datasets/jackyhate/text-to-image-2M/resolve/main/data_512_2M/data_000040.tar"
+      # - "https://huggingface.co/datasets/jackyhate/text-to-image-2M/resolve/main/data_512_2M/data_000041.tar"
+      # - "https://huggingface.co/datasets/jackyhate/text-to-image-2M/resolve/main/data_512_2M/data_000042.tar"
+      # - "https://huggingface.co/datasets/jackyhate/text-to-image-2M/resolve/main/data_512_2M/data_000043.tar"
+      # - "https://huggingface.co/datasets/jackyhate/text-to-image-2M/resolve/main/data_512_2M/data_000044.tar"
+      - "https://huggingface.co/datasets/jackyhate/text-to-image-2M/resolve/main/data_512_2M/data_000045.tar"
+      - "https://huggingface.co/datasets/jackyhate/text-to-image-2M/resolve/main/data_512_2M/data_000046.tar"
+    cache_name: "data_512_2M"
+    condition_size: 
+      - 512
+      - 512
+    target_size: 
+      - 512
+      - 512
+    drop_text_prob: 0.1
+    drop_image_prob: 0.1
+    drop_id_prob: 0.1
+    num_validation: 5
+
+
+  wandb:
+    project: "faceswap_flux_omini"
+
+  # lora_path : '/mnt/data2/jiwon/OminiControl/runs/faceswap_scratch_lora64_20251004-005548/ckpt/43000/default.safetensors'
+  lora_path: '/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_20251014-162532/ckpt/80000/default.safetensors'
+
+  lora_config:
+    r: 4
+    lora_alpha: 4
+    init_lora_weights: "gaussian"
+    target_modules: "(.*x_embedder|.*(?<!single_)transformer_blocks\\.[0-9]+\\.norm1\\.linear|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_k|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_q|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_v|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_out\\.0|.*(?<!single_)transformer_blocks\\.[0-9]+\\.ff\\.net\\.2|.*single_transformer_blocks\\.[0-9]+\\.norm\\.linear|.*single_transformer_blocks\\.[0-9]+\\.proj_mlp|.*single_transformer_blocks\\.[0-9]+\\.proj_out|.*single_transformer_blocks\\.[0-9]+\\.attn.to_k|.*single_transformer_blocks\\.[0-9]+\\.attn.to_q|.*single_transformer_blocks\\.[0-9]+\\.attn.to_v|.*single_transformer_blocks\\.[0-9]+\\.attn.to_out)"
+    # (Uncomment the following lines to train less parameters while keeping the similar performance)
+    # target_modules: "(.*(?<!single_)transformer_blocks\\.[0-9]+\\.norm1\\.linear|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_k|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_q|.*single_transformer_blocks\\.[0-9]+\\.norm\\.linear|.*single_transformer_blocks\\.[0-9]+\\.attn.to_k|.*single_transformer_blocks\\.[0-9]+\\.attn.to_q)"
+
+  # optimizer:
+  #   type: "Prodigy"
+  #   params:
+  #     lr: 1
+  #     use_bias_correction: true
+  #     safeguard_warmup: true
+  #     weight_decay: 0.01
+
+  # (To use AdamW Optimizer, uncomment the following lines)
+  optimizer:
+    type: AdamW
+    params:
+      lr: 1.0e-4
+      weight_decay: 0.001

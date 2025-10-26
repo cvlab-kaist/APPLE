@@ -930,47 +930,49 @@ class FluxTransformer2DModelCA(
 
     #     return Transformer2DModelOutput(sample=output)
 
-    def forward(
-        self,
-        image_features: List[torch.Tensor],
-        text_features: List[torch.Tensor] = None,
-        img_ids: List[torch.Tensor] = None,
-        txt_ids: List[torch.Tensor] = None,
-        pooled_projections: List[torch.Tensor] = None,
-        timesteps: List[torch.LongTensor] = None,
-        guidances: List[torch.Tensor] = None,
-        adapters: List[str] = None, #  [None, None, "default"]
-        # Assign the function to be used for the forward pass
-        single_block_forward=None,
-        block_forward=None,
-        attn_forward=None,
-        # ID embedding parameters
-        id_embed: torch.Tensor = None,
-        id_weight: float = 1.0,
-        # Gaze embedding parameters
-        gaze_embed: torch.Tensor = None,
-        gaze_weight: float = 1.0,
-        **kwargs: dict,
-    ):
-        return transformer_forward_ca(
-            transformer=self,
-            image_features=image_features,
-            text_features=text_features,
-            img_ids=img_ids,
-            txt_ids=txt_ids,
-            pooled_projections=pooled_projections,
-            timesteps=timesteps,
-            guidances=guidances,
-            adapters=adapters,
-            single_block_forward=single_block_forward,
-            block_forward=block_forward,
-            attn_forward=attn_forward,
-            id_embed=id_embed,
-            id_weight=id_weight,
-            gaze_embed=gaze_embed,
-            gaze_weight=gaze_weight,
-            **kwargs,
-        )
+
+    #### Offloading 위한 forward 함수 ####
+    # def forward(
+    #     self,
+    #     image_features: List[torch.Tensor],
+    #     text_features: List[torch.Tensor] = None,
+    #     img_ids: List[torch.Tensor] = None,
+    #     txt_ids: List[torch.Tensor] = None,
+    #     pooled_projections: List[torch.Tensor] = None,
+    #     timesteps: List[torch.LongTensor] = None,
+    #     guidances: List[torch.Tensor] = None,
+    #     adapters: List[str] = None, #  [None, None, "default"]
+    #     # Assign the function to be used for the forward pass
+    #     single_block_forward=None,
+    #     block_forward=None,
+    #     attn_forward=None,
+    #     # ID embedding parameters
+    #     id_embed: torch.Tensor = None,
+    #     id_weight: float = 1.0,
+    #     # Gaze embedding parameters
+    #     gaze_embed: torch.Tensor = None,
+    #     gaze_weight: float = 1.0,
+    #     **kwargs: dict,
+    # ):
+    #     return transformer_forward_ca(
+    #         transformer=self,
+    #         image_features=image_features,
+    #         text_features=text_features,
+    #         img_ids=img_ids,
+    #         txt_ids=txt_ids,
+    #         pooled_projections=pooled_projections,
+    #         timesteps=timesteps,
+    #         guidances=guidances,
+    #         adapters=adapters,
+    #         single_block_forward=single_block_forward,
+    #         block_forward=block_forward,
+    #         attn_forward=attn_forward,
+    #         id_embed=id_embed,
+    #         id_weight=id_weight,
+    #         gaze_embed=gaze_embed,
+    #         gaze_weight=gaze_weight,
+    #         **kwargs,
+    #     )
 
     
     def components_to_device(self, device, dtype):

@@ -1101,8 +1101,9 @@ def generate_ca(
                     clear_cache()
             use_cond = not (kv_cache) or mode == "write"
 
-            # noise_pred = transformer_forward_ca(
-            noise_pred = self.transformer(
+            # noise_pred = self.transformer(
+            noise_pred = transformer_forward_ca(
+                self.transformer,
                 image_features=[latents] + (c_latents if use_cond else []), # X, C_I ...
                 text_features=[prompt_embeds], # C_T
                 img_ids=[latent_image_ids] + (c_ids if use_cond else []),
@@ -1202,6 +1203,411 @@ def generate_ca(
             # call the callback, if provided
             if i == len(timesteps) - 1 or (
                 (i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0
+            ):
+                progress_bar.update()
+
+    if latent_mask is not None:
+        # Combine the generated latents and the complement condition
+        assert complement_cond is not None
+        comp_latent, comp_ids = complement_cond
+        all_ids = torch.cat([latent_image_ids, comp_ids], dim=0)  # (Ta+Tc,3)
+        shape = (all_ids.max(dim=0).values + 1).to(torch.long)  # (3,)
+        H, W = shape[1].item(), shape[2].item()
+        B, _, C = latents.shape
+        # Create a empty canvas
+        canvas = latents.new_zeros(B, H * W, C)  # (B,H*W,C)
+
+        # Stash the latents and the complement condition
+        def _stash(canvas, tokens, ids, H, W) -> None:
+            B, T, C = tokens.shape
+            ids = ids.to(torch.long)
+            flat_idx = (ids[:, 1] * W + ids[:, 2]).to(torch.long)
+            canvas.view(B, -1, C).index_copy_(1, flat_idx, tokens)
+
+        _stash(canvas, latents, latent_image_ids, H, W)
+        _stash(canvas, comp_latent, comp_ids, H, W)
+        latents = canvas.view(B, H * W, C)
+
+    if output_type == "latent":
+        image = latents
+    else:
+        latents = self._unpack_latents(latents, height, width, self.vae_scale_factor)
+        latents = (
+            latents / self.vae.config.scaling_factor
+        ) + self.vae.config.shift_factor
+        image = self.vae.decode(latents, return_dict=False)[0]
+        image = self.image_processor.postprocess(image, output_type=output_type)
+
+    # Offload all models
+    self.maybe_free_model_hooks()
+
+    if not return_dict:
+        return (image,)
+
+    return FluxPipelineOutput(images=image)
+
+@torch.inference_mode()
+def encode_img(
+    self,
+    img: torch.Tensor | np.ndarray | Image.Image | str,
+    dtype: torch.dtype,
+    target_size: tuple[int, int] | None = None,  # (width, height)
+):
+    if isinstance(img, str):
+        img = Image.open(img).convert("RGB")
+    if isinstance(img, Image.Image):
+        img = np.array(img)
+
+    ori_height, ori_width = img.shape[:2]
+    if target_size is not None:
+        img = self.image_processor.resize(img[None], height=target_size[1], width=target_size[0])[0]
+
+    shape = img.shape
+    new_h = shape[0] if shape[0] % 16 == 0 else shape[0] - shape[0] % 16
+    new_w = shape[1] if shape[1] % 16 == 0 else shape[1] - shape[1] % 16
+
+    img = img[:new_h, :new_w, :]
+    img = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(0).float() / 127.5 - 1
+    img = img.to(device=self._execution_device, dtype=dtype)
+    latents = self.vae.encode(img).latent_dist.mode()
+
+    batch_size, channels, height, width = latents.shape
+    latents = self._pack_latents(latents, batch_size, channels, height, width)
+    image_ids = self._prepare_latent_image_ids(
+        batch_size, height // 2, width // 2, self._execution_device, dtype
+    )
+    latents = self.vae.config.scaling_factor * (latents - self.vae.config.shift_factor)
+
+    return latents, image_ids, new_h, new_w, ori_height, ori_width
+
+@torch.no_grad()
+def generate_ca_inv(
+    pipeline: FluxPipeline,
+    prompt: Union[str, List[str]] = None,
+    prompt_2: Optional[Union[str, List[str]]] = None,
+    height: Optional[int] = 512,
+    width: Optional[int] = 512,
+    num_inference_steps: int = 28,
+    timesteps: List[int] = None,
+    guidance_scale: float = 3.5,
+    num_images_per_prompt: Optional[int] = 1,
+    generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
+    latents: Optional[torch.FloatTensor] = None,
+    prompt_embeds: Optional[torch.FloatTensor] = None,
+    pooled_prompt_embeds: Optional[torch.FloatTensor] = None,
+    output_type: Optional[str] = "pil", # "pil" or "latent"
+    return_dict: bool = True,
+    joint_attention_kwargs: Optional[Dict[str, Any]] = None,
+    callback_on_step_end: Optional[Callable[[int, int, Dict], None]] = None,
+    callback_on_step_end_tensor_inputs: List[str] = ["latents"],
+    max_sequence_length: int = 512,
+    # Condition Parameters (Optional)
+    main_adapter: Optional[List[str]] = None,
+    conditions: List[Condition] = [],
+    image_guidance_scale: float = 1.0,
+    transformer_kwargs: Optional[Dict[str, Any]] = {},
+    kv_cache=False,
+    latent_mask=None,
+    # ID embedding parameters
+    id_embed: torch.Tensor = None,
+    id_weight: float = 1.0,
+    id_guidance_scale: float = 1.0,
+    uncond_id_embed: torch.Tensor = None,
+    uncond_id_weight: float = 1.0,
+    # Gaze embedding parameters
+    gaze_embed: torch.Tensor = None,
+    gaze_weight: float = 1.0,
+    uncond_gaze_embed: torch.Tensor = None,
+    uncond_gaze_weight: float = 1.0,
+    # Inversion parameters
+    inverse = False,
+    inverse_steps = None,
+    inverse_img: Optional[torch.FloatTensor] = None,
+    **params: dict,
+):
+    self = pipeline
+
+    height = height or self.default_sample_size * self.vae_scale_factor
+    width = width or self.default_sample_size * self.vae_scale_factor
+
+    # Check inputs. Raise error if not correct
+    self.check_inputs(
+        prompt,
+        prompt_2,
+        height,
+        width,
+        prompt_embeds=prompt_embeds,
+        pooled_prompt_embeds=pooled_prompt_embeds,
+        callback_on_step_end_tensor_inputs=callback_on_step_end_tensor_inputs,
+        max_sequence_length=max_sequence_length,
+    )
+
+    self._guidance_scale = guidance_scale
+    self._joint_attention_kwargs = joint_attention_kwargs
+
+    # Define call parameters
+    if prompt is not None and isinstance(prompt, str):
+        batch_size = 1
+    elif prompt is not None and isinstance(prompt, list):
+        batch_size = len(prompt)
+    else:
+        batch_size = prompt_embeds.shape[0]
+
+    device = self._execution_device
+
+    # Prepare prompt embeddings
+    (
+        prompt_embeds,
+        pooled_prompt_embeds,
+        text_ids,
+    ) = self.encode_prompt(
+        prompt=prompt,
+        prompt_2=prompt_2,
+        prompt_embeds=prompt_embeds,
+        pooled_prompt_embeds=pooled_prompt_embeds,
+        device=device,
+        num_images_per_prompt=num_images_per_prompt,
+        max_sequence_length=max_sequence_length,
+    )
+
+    if inverse and inverse_img is not None:
+        target_size = (width, height) if height is not None and width is not None else None
+        inverse_img_latents, inverse_latent_image_ids, height, width, ori_height, ori_width = encode_img(
+            self, inverse_img, prompt_embeds.dtype, target_size=target_size
+        )
+
+    # Prepare latent variables
+    num_channels_latents = self.transformer.config.in_channels // 4
+    latents, latent_image_ids = self.prepare_latents(
+        batch_size * num_images_per_prompt,
+        num_channels_latents,
+        height,
+        width,
+        prompt_embeds.dtype,
+        device,
+        generator,
+        latents,
+    )
+
+    if latent_mask is not None:
+        latent_mask = latent_mask.T.reshape(-1)
+        latents = latents[:, latent_mask]
+        latent_image_ids = latent_image_ids[latent_mask]
+
+    # Prepare conditions
+    c_latents, uc_latents, c_ids, c_timesteps = ([], [], [], [])
+    c_projections, c_guidances, c_adapters = ([], [], [])
+    complement_cond = None
+    for condition in conditions:
+        tokens, ids = condition.encode(self)
+        c_latents.append(tokens)  # [batch_size, token_n, token_dim]
+        # Empty condition for unconditioned image
+        if image_guidance_scale != 1.0:
+            uc_latents.append(condition.encode(self, empty=True)[0])
+        c_ids.append(ids)  # [token_n, id_dim(3)]
+        c_timesteps.append(torch.zeros([1], device=device))
+        c_projections.append(pooled_prompt_embeds)
+        c_guidances.append(torch.ones([1], device=device))
+        c_adapters.append(condition.adapter)
+        # This complement_condition will be combined with the original image.
+        # See the token integration of OminiControl2 [https://arxiv.org/abs/2503.08280]
+        if condition.is_complement:
+            complement_cond = (tokens, ids)
+
+    # Prepare timesteps
+    sigmas = np.linspace(1.0, 1 / num_inference_steps, num_inference_steps)
+    image_seq_len = latents.shape[1]
+    mu = calculate_shift(
+        image_seq_len,
+        self.scheduler.config.base_image_seq_len,
+        self.scheduler.config.max_image_seq_len,
+        self.scheduler.config.base_shift,
+        self.scheduler.config.max_shift,
+    )
+    timesteps, _ = retrieve_timesteps(
+        self.scheduler, num_inference_steps, device, timesteps, sigmas=sigmas, mu=mu
+    )
+    num_warmup_steps = max(
+        len(timesteps) - num_inference_steps * self.scheduler.order, 0
+    )
+    self._num_timesteps = len(timesteps)
+
+    if kv_cache:
+        attn_counter = 0
+        for module in self.transformer.modules():
+            if isinstance(module, Attention):
+                setattr(module, "cache_idx", attn_counter)
+                attn_counter += 1
+        kv_cond = [[[], []] for _ in range(attn_counter)]
+        kv_uncond = [[[], []] for _ in range(attn_counter)]
+
+        def clear_cache():
+            for storage in [kv_cond, kv_uncond]:
+                for kesy, values in storage:
+                    kesy.clear()
+                    values.clear()
+
+    branch_n = len(conditions) + 2
+    group_mask = torch.ones([branch_n, branch_n], dtype=torch.bool)
+    # Disable the attention cross different condition branches
+    group_mask[2:, 2:] = torch.diag(torch.tensor([1] * len(conditions)))
+    # Disable the attention from condition branches to image branch and text branch
+    if kv_cache:
+        group_mask[2:, :2] = False
+
+    if inverse:
+        latents = inverse_img_latents
+        self.scheduler.sigmas = torch.flip(self.scheduler.sigmas, dims=(0,))
+        timesteps = self.scheduler.sigmas * self.scheduler.config.num_train_timesteps
+        print(f"Inversion mode activated. Final latents : z_{timesteps[inverse_steps]}")
+        if inverse_steps is not None:
+                timesteps = timesteps[:inverse_steps]
+    else:
+        latents = latents
+        if inverse_steps is not None:
+            timesteps = timesteps[-inverse_steps:]
+            print(f"Reverse generation from z_{timesteps[0]} to z_0")
+
+    # Denoising loop
+    print("timesteps:", timesteps)
+    print("self.scheduler.sigmas:", self.scheduler.sigmas)
+    with self.progress_bar(total=num_inference_steps) as progress_bar:
+        # for step_idx, (t_curr, t_prev) in enumerate(zip(timesteps[:-1], timesteps[1:], strict=True)):
+        for step_idx , t in enumerate(timesteps):
+            # print(f"t_curr: {t_curr}, t_prev: {t_prev}")
+
+            # sigma_curr = t_curr / self.scheduler.config.num_train_timesteps
+            # sigma_prev = t_prev / self.scheduler.config.num_train_timesteps
+            # # broadcast to batch dimension in a way that's compatible with ONNX/Core ML
+            # timestep = sigma_curr.expand(latents.shape[0]).to(latents.dtype) / 1000
+
+            timestep = t.expand(latents.shape[0]).to(latents.dtype) / 1000
+            sigma_curr = self.scheduler.sigmas[step_idx]
+            sigma_next = self.scheduler.sigmas[step_idx + 1]
+            
+
+
+            # handle guidance
+            if self.transformer.config.guidance_embeds:
+                guidance = torch.tensor([guidance_scale], device=device)
+                guidance = guidance.expand(latents.shape[0])
+            else:
+                guidance, c_guidances = None, [None for _ in c_guidances]
+
+            if kv_cache:
+                mode = "write" if step_idx == 0 else "read"
+                if mode == "write":
+                    clear_cache()
+            use_cond = not (kv_cache) or mode == "write"
+
+            # noise_pred = self.transformer(
+            noise_pred = transformer_forward_ca(
+                self.transformer,
+                image_features=[latents] + (c_latents if use_cond else []), # X, C_I ...
+                text_features=[prompt_embeds], # C_T
+                img_ids=[latent_image_ids] + (c_ids if use_cond else []),
+                txt_ids=[text_ids],
+                timesteps=[timestep, timestep] + (c_timesteps if use_cond else []),
+                pooled_projections=[pooled_prompt_embeds] * 2
+                + (c_projections if use_cond else []),
+                guidances=[guidance] * 2 + (c_guidances if use_cond else []),
+                return_dict=False,
+                adapters=[main_adapter] * 2 + (c_adapters if use_cond else []),
+                cache_mode=mode if kv_cache else None,
+                cache_storage=kv_cond if kv_cache else None,
+                to_cache=[False, False, *[True] * len(c_latents)], # (Text, Image, Condition ...)
+                group_mask=group_mask,
+                id_embed=id_embed.to(latents.device, latents.dtype) if id_embed is not None else None,
+                id_weight=id_weight,
+                gaze_embed=gaze_embed.to(latents.device, latents.dtype) if gaze_embed is not None else None,
+                gaze_weight=gaze_weight,
+                single_block_forward=single_block_forward,
+                block_forward=block_forward,
+                attn_forward=attn_forward,
+                **transformer_kwargs,
+            )[0]
+
+            if image_guidance_scale != 1.0:
+                unc_pred = transformer_forward_ca(
+                    self.transformer,
+                    image_features=[latents] + (uc_latents if use_cond else []),
+                    text_features=[prompt_embeds],
+                    img_ids=[latent_image_ids] + (c_ids if use_cond else []),
+                    txt_ids=[text_ids],
+                    timesteps=[timestep, timestep] + (c_timesteps if use_cond else []),
+                    pooled_projections=[pooled_prompt_embeds] * 2
+                    + (c_projections if use_cond else []),
+                    guidances=[guidance] * 2 + (c_guidances if use_cond else []),
+                    return_dict=False,
+                    adapters=[main_adapter] * 2 + (c_adapters if use_cond else []),
+                    cache_mode=mode if kv_cache else None,
+                    cache_storage=kv_uncond if kv_cache else None,
+                    to_cache=[False, False, *[True] * len(c_latents)],
+                    id_embed=id_embed.to(latents.device, latents.dtype) if id_embed is not None else None,
+                    id_weight=id_weight,
+                    gaze_embed=gaze_embed.to(latents.device, latents.dtype) if gaze_embed is not None else None,
+                    gaze_weight=gaze_weight,
+                    **transformer_kwargs,
+                )[0]
+
+                noise_pred = unc_pred + image_guidance_scale * (noise_pred - unc_pred)
+
+            if id_guidance_scale != 1.0:
+                assert image_guidance_scale == 1.0, "id_guidance_scale and image_guidance_scale cannot be applied at the same time."
+                
+                unc_pred = transformer_forward_ca(
+                    self.transformer,
+                    image_features=[latents] + (c_latents if use_cond else []),
+                    text_features=[prompt_embeds],
+                    img_ids=[latent_image_ids] + (c_ids if use_cond else []),
+                    txt_ids=[text_ids],
+                    timesteps=[timestep, timestep] + (c_timesteps if use_cond else []),
+                    pooled_projections=[pooled_prompt_embeds] * 2
+                    + (c_projections if use_cond else []),
+                    guidances=[guidance] * 2 + (c_guidances if use_cond else []),
+                    return_dict=False,
+                    adapters=[main_adapter] * 2 + (c_adapters if use_cond else []),
+                    cache_mode=mode if kv_cache else None,
+                    cache_storage=kv_uncond if kv_cache else None,
+                    to_cache=[False, False, *[True] * len(c_latents)],
+                    id_embed=uncond_id_embed.to(latents.device, latents.dtype) if uncond_id_embed is not None else None,
+                    id_weight=uncond_id_weight,
+                    gaze_embed=uncond_gaze_embed.to(latents.device, latents.dtype) if uncond_gaze_embed is not None else None,
+                    gaze_weight=uncond_gaze_weight,
+                    **transformer_kwargs,
+                )[0]
+
+                noise_pred = unc_pred + id_guidance_scale * (noise_pred - unc_pred)
+
+
+
+            # compute the previous noisy sample x_t -> x_t-1
+            latents_dtype = latents.dtype
+            # if inverse:
+            #     latents = latents + (sigma_next - sigma_curr) * noise_pred
+            # else:
+            #     print(f"sigma_next: {sigma_next}, sigma_curr: {sigma_curr}")
+            #     latents = latents + (sigma_next - sigma_curr) * noise_pred
+            # latents = self.scheduler.step(noise_pred, t, latents)[0]
+            latents = latents + (sigma_next - sigma_curr) * noise_pred
+
+            if latents.dtype != latents_dtype:
+                if torch.backends.mps.is_available():
+                    # some platforms (eg. apple mps) misbehave due to a pytorch bug: https://github.com/pytorch/pytorch/pull/99272
+                    latents = latents.to(latents_dtype)
+
+            if callback_on_step_end is not None:
+                callback_kwargs = {}
+                for k in callback_on_step_end_tensor_inputs:
+                    callback_kwargs[k] = locals()[k]
+                callback_outputs = callback_on_step_end(self, step_idx, t_prev, callback_kwargs)
+
+                latents = callback_outputs.pop("latents", latents)
+                prompt_embeds = callback_outputs.pop("prompt_embeds", prompt_embeds)
+
+            # call the callback, if provided
+            if step_idx == len(timesteps) - 1 or (
+                (step_idx + 1) > num_warmup_steps and (step_idx + 1) % self.scheduler.order == 0
             ):
                 progress_bar.update()
 

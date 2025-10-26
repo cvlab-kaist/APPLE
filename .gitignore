@@ -6,3 +6,6 @@ wget-log
 *.safetensors
 __pycache__/
 *.pyc
+inversion*/
+runs/
+other_models/
