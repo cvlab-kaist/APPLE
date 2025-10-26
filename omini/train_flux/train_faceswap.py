@@ -681,7 +681,7 @@ def main():
             id_embed_candidates_cache = {} # 캐시
             for id in tqdm(set(ids)): # 캐싱
                 id_embed_candidates = glob(os.path.join(vgg_dataset_path, id, id_dirname, '*.npy'))
-                id_embed_candidates_cache[id] = id_embed_candidates
+                id_embed_candidates_cache[id] = natsorted(list(id_embed_candidates))
             torch.save(id_embed_candidates_cache, cache_vgg_path)
             print(f"[INFO] Cached VGG ID embed candidates saved to {cache_vgg_path}")
 
