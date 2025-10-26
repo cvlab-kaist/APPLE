@@ -685,7 +685,7 @@ def main():
         id_from = training_config["dataset"].get("id_from", "original"),
         swapped_condition_type=training_config["dataset"].get("swapped_condition_type", None),
         id_embed_candidates_cache=id_embed_candidates_cache if cache_vgg and dataset_type == "vgg" else None,
-        get_random_id_embed_every_step=training_config["dataset"].get("get_random_id_embed_every_step", False),
+        get_random_id_embed_every_step= False, # no need for testing
     )
 
     # Initialize custom dataset
@@ -736,6 +736,9 @@ def main():
         train_gaze_type=training_config.get("train_gaze_type", 'CA'),
         train_gaze_loss=training_config.get("train_gaze_loss", False),
         train_gaze_loss_type=training_config.get("train_gaze_loss_type", 'feature'),
+        train_lpips_loss=training_config.get("train_lpips_loss", False),
+        lpips_weight=training_config.get("lpips_weight", 1.0),
+        lpips_loss_thres=training_config.get("lpips_loss_thres", 0.5),
 
     )
     train(dataset, trainable_model, config, test_function=lambda *args : test_function(*args, test_dataset=test_dataset))

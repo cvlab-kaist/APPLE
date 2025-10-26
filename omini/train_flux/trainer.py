@@ -78,6 +78,9 @@ class OminiModel(L.LightningModule):
         train_gaze_type : str = 'CA', # 'CA' for CrossAttn, 'temb' for time embedding, 'omini' for OminiControl
         train_gaze_loss: bool = False,
         train_gaze_loss_type: str = 'feature', # 'feature' for feature L2 loss, 'pred' for (yaw, pitch) prediction loss
+        train_lpips_loss: bool = False,
+        lpips_weight: float = 1.0,
+        lpips_loss_thres: float = 0.5,
     ):
         # Initialize the LightningModule
         super().__init__()
@@ -115,6 +118,16 @@ class OminiModel(L.LightningModule):
         # ID Loss settings
         self.id_loss_thres = id_loss_thres
         print(f"[INFO] ID loss threshold : t <= {self.id_loss_thres}")
+
+
+        # LPIPS loss settings
+        self.train_lpips_loss = train_lpips_loss
+        self.lpips_weight = lpips_weight
+        self.lpips_loss_thres = lpips_loss_thres
+        if self.train_lpips_loss:
+            import lpips
+            self.lpips_loss_fn = lpips.LPIPS(net='vgg')
+            print(f"[INFO] LPIPS loss training enabled. Weight: {self.lpips_weight}, Threshold: t <= {self.lpips_loss_thres}")
 
         # add pulid training
         self.train_pulid_enc = train_pulid_enc
@@ -315,7 +328,7 @@ class OminiModel(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         if self.global_step % 10 == 0:
-            print(f"[DEBUG] Training step {self.global_step}, LoRA weight mean: {self.transformer.transformer_blocks[0].attn.to_q.lora_A['default'].weight.data.mean()}")
+            print(f"[DEBUG] Training global step {self.global_step}, LoRA weight mean: {self.transformer.transformer_blocks[0].attn.to_q.lora_A['default'].weight.data.mean()}")
 
         # print ("start training step")
         imgs, prompts = batch["image"], batch["description"]
@@ -456,12 +469,25 @@ class OminiModel(L.LightningModule):
             # VAE decode : pred_x0 -> 이미지
             pred_x0 = self.flux_pipe._unpack_latents(pred_x0, height, width, self.flux_pipe.vae_scale_factor)
             pred_x0 = (pred_x0 / self.flux_pipe.vae.config.scaling_factor) + self.flux_pipe.vae.config.shift_factor
-            image = self.flux_pipe.vae.decode(pred_x0, return_dict=False)[0]
-            x_in = self.flux_pipe.image_processor.postprocess(image, output_type='pt', do_denormalize=[False]) # [-1, 1]
+            image = self.flux_pipe.vae.decode(pred_x0, return_dict=False)[0] # [-1, 1]
+            x_in = self.flux_pipe.image_processor.postprocess(image, output_type='pt', do_denormalize=[False]) # [-1, 1] ??? 아무것도 안하는 코드인데 내가 왜넣은거임
 
             # DEBUG
             # image_pil = self.flux_pipe.image_processor.postprocess(image.detach(), output_type='pil') # List[PIL.Image]
             # breakpoint()
+
+            if self.train_lpips_loss:
+                pred = x_in.clone() # [-1, 1]
+                trg = imgs.clone().to(x_in.device, x_in.dtype) # [0, 1]
+                trg = ((trg * 2) - 1).clamp(-1, 1) # [0, 1] -> [-1, 1]
+
+                lpips_loss_per_sample = self.lpips_loss_fn(pred, trg) # (b, 1, 1, 1)
+                t_mask = (t <= self.lpips_loss_thres).to(self.flux_pipe.dtype)
+                lpips = (lpips_loss_per_sample.squeeze() * t_mask).mean()
+                lpips /= (t_mask.mean() + 1e-5) # Scaling by the number of valid samples
+                
+                step_loss = step_loss + lpips * self.lpips_weight
+
             
             if self.flux_pipe.transformer.netarc is not None:
                 # id loss 계산
@@ -580,6 +606,7 @@ class OminiModel(L.LightningModule):
         self.last_id_loss = id_loss.item() if self.flux_pipe.transformer.netarc is not None else 0.0
         self.last_recon_loss = recon_loss.item()
         self.last_gaze_loss = gaze_loss.item() if self.train_gaze_loss else 0.0
+        self.last_lpips_loss = lpips.item() if self.train_lpips_loss else 0.0
 
         self.log_loss = (
             step_loss.item()
@@ -640,11 +667,13 @@ class TrainingCallback(L.Callback):
                 report_dict["id_loss"] = pl_module.last_id_loss
             if pl_module.last_gaze_loss > 0.0 :
                 report_dict["gaze_loss"] = pl_module.last_gaze_loss
+            if pl_module.last_lpips_loss > 0.0 :
+                report_dict["lpips_loss"] = pl_module.last_lpips_loss
             wandb.log(report_dict)
 
         if self.total_steps % self.print_every_n_steps == 0:
             print(
-                f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step}, Batch: {batch_idx}, Loss: {pl_module.log_loss:.4f}, Gradient size: {gradient_size:.4f}, Max gradient size: {max_gradient_size:.4f} Recon loss: {pl_module.last_recon_loss:.4f}, ID loss: {pl_module.last_id_loss:.4f}, Gaze loss: {pl_module.last_gaze_loss:.4f}"
+                f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step}, Batch: {batch_idx}, Loss: {pl_module.log_loss:.4f}, Gradient size: {gradient_size:.4f}, Max gradient size: {max_gradient_size:.4f} Recon loss: {pl_module.last_recon_loss:.4f}, ID loss: {pl_module.last_id_loss:.4f}, Gaze loss: {pl_module.last_gaze_loss:.4f}, LPIPS loss: {pl_module.last_lpips_loss:.4f}"
             )
 
         # Save LoRA weights at specified intervals

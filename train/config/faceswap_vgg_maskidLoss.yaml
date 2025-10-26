@@ -20,6 +20,10 @@ train:
   netarc_path: '/mnt/data3/jiwon/fluxswap/checkpoints/arcface_checkpoint.tar'
   use_irse50: false # (Set to true when using ID loss with IRSE50)
   id_loss_thres: 0.3 # ID loss threshold
+  # LPIPS loss training options
+  train_lpips_loss: false
+  lpips_weight: 1.0
+  lpips_loss_thres: 0.3
   # OminiControl training options
   train_omini: true
   # ID CA and Encoder training options
