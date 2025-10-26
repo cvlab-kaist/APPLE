@@ -648,7 +648,7 @@ class TrainingCallback(L.Callback):
             )
 
         # Save LoRA weights at specified intervals
-        if (pl_module.global_step % self.save_interval == 0 or self.total_steps == 1):
+        if ((pl_module.global_step % self.save_interval == 0 and pl_module.global_step != 0) or self.total_steps == 1):
             print(
                 f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step}, - Saving LoRA weights"
             )
@@ -671,7 +671,7 @@ class TrainingCallback(L.Callback):
                     raise NotImplementedError("train_gaze_type not implemented:", pl_module.train_gaze_type)
 
         # Generate and save a sample image at specified intervals
-        if (pl_module.global_step % self.sample_interval == 0 or self.total_steps == 1) and self.test_function:
+        if ((pl_module.global_step % self.save_interval == 0 and pl_module.global_step != 0) or self.total_steps == 1) and self.test_function:
             print(
                 f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step} - Generating a sample"
             )
