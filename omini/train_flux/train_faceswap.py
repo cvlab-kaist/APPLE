@@ -369,42 +369,42 @@ class VGGDataset(torch.utils.data.Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        # while True:
-        #     try:
-        # Processing
-        src_img = Image.open(self.src_img_list[idx]).convert('RGB')
-        src_img_basename = os.path.basename(self.src_img_list[idx]).split('.')[0] # e.g. 0001_01
-        img = Image.open(self.image_paths[idx]).convert('RGB') # GT target
-        controlnet_img = Image.open(self.controlnet_paths[idx]).convert('RGB')
-        if self.get_random_id_embed_every_step:
-            # 동일한 ID 중에서 매번 랜덤 선택
-            id = self.id_embed_paths[idx].split('/')[-3] # e.g. n000002
-            id_candidates = self.id_embed_candidates_cache[id]
-            # 자기 자신밖에 없을수도 있으니, 제외 처리 안하고 랜덤 선택
-            selected_id_embed = random.choice(id_candidates)
-            face_id_embed = torch.Tensor(np.load(selected_id_embed))
-        else:
-            face_id_embed = torch.Tensor(np.load(self.id_embed_paths[idx]))
-        gaze_embed = torch.Tensor(np.load(self.gaze_paths[idx])) if self.train_gaze else None
-        
+        while True:
+            try:
+                # Processing
+                src_img = Image.open(self.src_img_list[idx]).convert('RGB')
+                src_img_basename = os.path.basename(self.src_img_list[idx]).split('.')[0] # e.g. 0001_01
+                img = Image.open(self.image_paths[idx]).convert('RGB') # GT target
+                controlnet_img = Image.open(self.controlnet_paths[idx]).convert('RGB')
+                if self.get_random_id_embed_every_step:
+                    # 동일한 ID 중에서 매번 랜덤 선택
+                    id = self.id_embed_paths[idx].split('/')[-3] # e.g. n000002
+                    id_candidates = self.id_embed_candidates_cache[id]
+                    # 자기 자신밖에 없을수도 있으니, 제외 처리 안하고 랜덤 선택
+                    selected_id_embed = random.choice(id_candidates)
+                    face_id_embed = torch.Tensor(np.load(selected_id_embed))
+                else:
+                    face_id_embed = torch.Tensor(np.load(self.id_embed_paths[idx]))
+                gaze_embed = torch.Tensor(np.load(self.gaze_paths[idx])) if self.train_gaze else None
+                
 
-        return {
-            "src_img": src_img,
-            "img": img,
-            # "original_size": (original_height, original_width),
-            # "prompt_embeds": prompt_embeds,
-            # "pooled_prompt_embeds": pooled_prompt_embeds,
-            "face_id_embed": face_id_embed,
-            "uncond_id_embed": self.uncond_id_embed,
-            # "drop_image_embed": drop_image_embed,
-            'controlnet_img': controlnet_img,
-            "gaze_embed": gaze_embed ,
-        }
+                return {
+                    "src_img": src_img,
+                    "img": img,
+                    # "original_size": (original_height, original_width),
+                    # "prompt_embeds": prompt_embeds,
+                    # "pooled_prompt_embeds": pooled_prompt_embeds,
+                    "face_id_embed": face_id_embed,
+                    "uncond_id_embed": self.uncond_id_embed,
+                    # "drop_image_embed": drop_image_embed,
+                    'controlnet_img': controlnet_img,
+                    "gaze_embed": gaze_embed ,
+                }
 
             
-            # except Exception as e:
-            #     print(f"[WARN] idx {idx} failed with error: {e}, retrying...")
-            #     idx = random.randint(0, self.__len__() - 1)
+            except Exception as e:
+                print(f"[WARN] idx {idx} failed with error: {e}, retrying...")
+                idx = random.randint(0, self.__len__() - 1)
 
 
 class ImageConditionDataset(Dataset):
@@ -472,46 +472,46 @@ class ImageConditionDataset(Dataset):
         return condition_img, position_delta
 
     def __getitem__(self, idx):
-        # try :
-        base_dataset_item = self.base_dataset[idx]
-        image = base_dataset_item["img"]
-        src_img = base_dataset_item.get('src_img', base_dataset_item['img']) # src_img이 없으면 그냥 img 사용
-        image = image.resize(self.target_size).convert("RGB")
-        gaze_embed = base_dataset_item.get('gaze_embed', None)
-        gaze_embed = gaze_embed.squeeze() if gaze_embed is not None else None
-        # description = base_dataset_item["json"]["prompt"] 
-        description = 'a photo of human face' # using fixed prompt for face swap
+        try :
+            base_dataset_item = self.base_dataset[idx]
+            image = base_dataset_item["img"]
+            src_img = base_dataset_item.get('src_img', base_dataset_item['img']) # src_img이 없으면 그냥 img 사용
+            image = image.resize(self.target_size).convert("RGB")
+            gaze_embed = base_dataset_item.get('gaze_embed', None)
+            gaze_embed = gaze_embed.squeeze() if gaze_embed is not None else None
+            # description = base_dataset_item["json"]["prompt"] 
+            description = 'a photo of human face' # using fixed prompt for face swap
 
-        condition_size = self.condition_size
-        position_scale = self.position_scale
+            condition_size = self.condition_size
+            position_scale = self.position_scale
 
-        _, position_delta = self.__get_condition__(
-            image, self.condition_type
-        )
-        condition_img = base_dataset_item["controlnet_img"]
-        condition_img = condition_img.resize(condition_size).convert("RGB")
+            _, position_delta = self.__get_condition__(
+                image, self.condition_type
+            )
+            condition_img = base_dataset_item["controlnet_img"]
+            condition_img = condition_img.resize(condition_size).convert("RGB")
 
-        id_embed = base_dataset_item["face_id_embed"].squeeze()
-        uncond_id_embed = base_dataset_item["uncond_id_embed"].squeeze()
+            id_embed = base_dataset_item["face_id_embed"].squeeze()
+            uncond_id_embed = base_dataset_item["uncond_id_embed"].squeeze()
 
-        # Randomly drop text or image (for training)
-        drop_text = random.random() < self.drop_text_prob
-        drop_image = random.random() < self.drop_image_prob
-        drop_id = random.random() < self.drop_id_prob
-        drop_gaze = random.random() < self.drop_gaze_prob
+            # Randomly drop text or image (for training)
+            drop_text = random.random() < self.drop_text_prob
+            drop_image = random.random() < self.drop_image_prob
+            drop_id = random.random() < self.drop_id_prob
+            drop_gaze = random.random() < self.drop_gaze_prob
 
-        if drop_text:
-            description = ""
-        if drop_image:
-            condition_img = Image.new("RGB", condition_size, (0, 0, 0))
-        if drop_id:
-            id_embed = uncond_id_embed
-        if drop_gaze and gaze_embed is not None:
-            gaze_embed = torch.zeros_like(gaze_embed)
-        # except Exception as e:
-        #     # In case of error, return a random item
-        #     print(f"[WARN] idx {idx} failed with error: {e}, retrying...")
-        #     return self.__getitem__(random.randint(0, self.__len__() - 1))
+            if drop_text:
+                description = ""
+            if drop_image:
+                condition_img = Image.new("RGB", condition_size, (0, 0, 0))
+            if drop_id:
+                id_embed = uncond_id_embed
+            if drop_gaze and gaze_embed is not None:
+                gaze_embed = torch.zeros_like(gaze_embed)
+        except Exception as e:
+            # In case of error, return a random item
+            print(f"[WARN] idx {idx} failed with error: {e}, retrying...")
+            return self.__getitem__(random.randint(0, self.__len__() - 1))
 
 
 
