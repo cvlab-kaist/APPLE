@@ -591,7 +591,8 @@ class FluxTransformer2DModelCA(
         onnx_provider: str = 'cuda',
         local_rank: int = 0,
         # ID Loss training
-        use_netarc: bool = False, # For ID loss training, deprecated
+        use_netarc: bool = False, # For ID loss training
+        netarc_path: str = None,
         use_irse50: bool = False, # For ID loss training
         # Gaze conditioning
         use_gaze: bool = False, # For gaze conditioning
@@ -630,7 +631,9 @@ class FluxTransformer2DModelCA(
         self.use_gaze = use_gaze
 
         if use_netarc:
-            self.netarc = torch.load('/mnt/data2/jiwon/DiffFace_SDXL/checkpoints/arcface_checkpoint.tar', weights_only=False)
+            if netarc_path is None:
+                raise ValueError('netarc_path must be provided when use_netarc is True')
+            self.netarc = torch.load(netarc_path, weights_only=False)
             self.netarc.eval()
             print('[INFO] Using ArcFace ResNet18 model for ID loss')
         else:

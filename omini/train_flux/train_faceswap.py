@@ -24,7 +24,7 @@ class FFHQDataset(torch.utils.data.Dataset):
         num_validation = 5,
         mode = 'train',
         condition_type = 'condition_blended_image_blurdownsample8_segGlass_landmark',
-
+        *kwargs,
     ):
 
         self.dataset_path = dataset_path
@@ -129,11 +129,18 @@ class VGGDataset(torch.utils.data.Dataset):
         pseudo = False,
         id_from = 'original', # options: ['original', 'masked']
         swapped_condition_type = None, # options: [None, 'condition_pose']
-
+        id_embed_candidates_cache = None,
+        get_random_id_embed_every_step = False,
     ):
+        # 예시) /mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000002/0001_01.jpg
+        # 예시) /mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000002/masked_pulid_id/0001_01.npy
+
         self.dataset_path = dataset_path
         self.train_gaze = train_gaze
         self.swapped_condition_type = swapped_condition_type
+        self.id_embed_candidates_cache = id_embed_candidates_cache
+        self.get_random_id_embed_every_step = get_random_id_embed_every_step
+        print(f"[INFO] VGGDataset w/ get_random_id_embed_every_step: {self.get_random_id_embed_every_step}")
 
         if id_from == 'original':
             id_dirname = 'pulid_id'
@@ -141,66 +148,76 @@ class VGGDataset(torch.utils.data.Dataset):
             id_dirname = 'masked_pulid_id'
         else:
             raise ValueError(f"Invalid id_from value: {id_from}")
+        self.id_dirname = id_dirname
 
+        random.seed(0) # Seed for reproducibility
         if not pseudo:
-            print("[INFO] Using real dataset with for VGGDataset")
-            print(f"[INFO] 1st Stage Training")
+            print("[INFO] 1st Stage Training: Using real dataset with for VGGDataset")
             
-            # AES Score 기준으로 필터링
+            # 1) AES Score 기준으로 필터링
             import json
             json_path = os.path.join(dataset_path, 'score.json')
             with open(json_path, 'r') as f:
                 score_dict = json.load(f)
 
-            training_base_list = list(natsorted(os.listdir(dataset_path)))[:-2000] # 마지막 2000개는 validation set으로 사용
+            training_base_list = list(natsorted(os.listdir(dataset_path)))
+            # training_base_list = list(natsorted(os.listdir(dataset_path)))[:-2000] # 마지막 2000개는 validation set으로 사용
             high_aes_keys = [k for k, v in score_dict.items() if v['aes'] > 5.5]
-            img_list = [os.path.join(dataset_path, k + '.jpg') for k in high_aes_keys if os.path.exists(os.path.join(dataset_path, k + '.jpg')) and k.split('/')[0] in training_base_list] 
+            img_list = [os.path.join(dataset_path, k + '.jpg') for k in high_aes_keys if k.split('/')[0] in training_base_list] 
             # img_list = natsorted(img_list)[:1000] # for debugging, limit to 1000 images
             print(f"Filtered images based on AES score > 5.5: {len(img_list)} images remain.")
 
-            random.seed(0)
             random.shuffle(img_list)
             if mode == 'train':
                 img_list = img_list[:-num_validation]
             else:
                 img_list = img_list[-num_validation:]
             
-            dirname_list = [os.path.dirname(f) for f in img_list]
-            basename_list = [os.path.basename(f).split('.')[0] for f in img_list]
-            gaze_paths = [os.path.join(dataset_path, dirname, gaze_type, f"{basename}.npy") for (dirname, basename) in zip(dirname_list, basename_list) ]
-            print(f"[INFO] Using gaze type: {gaze_type}")
+            dirname_list = [os.path.dirname(f) for f in img_list] # ID : n000002
+            basename_list = [os.path.basename(f).split('.')[0] for f in img_list] # e.g. 0001_01
 
-            # imgs_list를 gaze_path 기준으로 다시 필터링 : gaze가 안된 이미지 (e.g. 80도 이상)도 존재
-            img_list = [img for img, gaze_path in zip(img_list, gaze_paths) if os.path.exists(gaze_path)]   
-            gaze_paths = [gaze_path for gaze_path in gaze_paths if os.path.exists(gaze_path)]
-            dirname_list = [os.path.dirname(f) for f in img_list]
-            basename_list = [os.path.basename(f).split('.')[0] for f in img_list]
+            gaze_paths = None
+            if train_gaze:
+                # 2) imgs_list를 gaze_path 기준으로 다시 필터링 : gaze가 안된 이미지 (e.g. 80도 이상)도 존재
+                # Update : img_list, gaze_paths, dirname_list, basename_list 
+                gaze_paths = [os.path.join(dataset_path, dirname, gaze_type, f"{basename}.npy") for (dirname, basename) in zip(dirname_list, basename_list) ]
+                print(f"[INFO] Using gaze type: {gaze_type}")
+                img_list = [img for img, gaze_path in zip(img_list, gaze_paths) if os.path.exists(gaze_path)]   # gaze path가 존재하는 이미지들만 선택
+                gaze_paths = [gaze_path for gaze_path in gaze_paths if os.path.exists(gaze_path)] # gaze path도 동기화
+                dirname_list = [os.path.dirname(f) for f in img_list] # 동기화
+                basename_list = [os.path.basename(f).split('.')[0] for f in img_list] # 동기화
 
-            print(f"[INFO] After filtering based on gaze paths: {len(img_list)} images remain.")
+                print(f"[INFO] After filtering based on gaze paths: {len(img_list)} images remain.")
 
-            # 모든 gaze path가 존재하는지 확인
-            for gaze_path in gaze_paths:
-                if not os.path.exists(gaze_path):
-                    raise ValueError(f"Gaze path does not exist: {gaze_path}")
+                # 모든 gaze path가 존재하는지 확인
+                for gaze_path in gaze_paths:
+                    if not os.path.exists(gaze_path):
+                        raise ValueError(f"Gaze path does not exist: {gaze_path}")
 
 
-            # Source의 Image 및 ID embed 설정
+            # 3) Source의 Image 및 ID embed 설정
             # target과 동일한 인물 내에서 랜덤하게 하나 선택
-            # id_embed_list = [os.path.join(dataset_path, dirname, 'pulid_id', f"{basename}.npy") for (dirname, basename) in zip(dirname_list, basename_list)]
             src_img_list = []
             id_embed_list = []
             effective_dirname_list = []
             effective_basename_list = []
+            if id_embed_candidates_cache is None:
+                id_embed_candidates_cache = {} # 캐시
+                for dirname in tqdm(set(dirname_list), desc="Caching ID embed candidates"):
+                    id_embed_candidates = glob(os.path.join(dataset_path, dirname, id_dirname, '*.npy')) #
+                    id_embed_candidates_cache[dirname] = id_embed_candidates
             for (dirname, basename) in zip(dirname_list, basename_list):
-                id_embed_candidates = glob(os.path.join(dataset_path, dirname, id_dirname, '*.npy'))
+                id = dirname.split('/')[-1] # e.g. n000002
+                id_embed_candidates = id_embed_candidates_cache.get(id, [])
                 if len(id_embed_candidates) == 0:
+                    print (f"[WARN] No ID embed candidates found for {id}, skipping sample.")
                     continue
                 else :
                     effective_dirname_list.append(dirname)
                     effective_basename_list.append(basename)
                     selected_id_embed = random.choice(id_embed_candidates)
-                    id_embed_list.append(selected_id_embed)
-                    src_img_list.append(os.path.join(dataset_path, dirname, os.path.basename(selected_id_embed).replace('.npy', '.jpg')))
+                    id_embed_list.append(selected_id_embed) # 랜덤하게 선택한 ID embed
+                    src_img_list.append(os.path.join(dataset_path, dirname, os.path.basename(selected_id_embed).replace('.npy', '.jpg'))) # 해당 ID embed에 대응하는 이미지
             dirname_list = effective_dirname_list
             basename_list = effective_basename_list
             img_list = [os.path.join(dataset_path, dirname, f"{basename}.jpg") for (dirname, basename) in zip(dirname_list, basename_list)]
@@ -208,6 +225,7 @@ class VGGDataset(torch.utils.data.Dataset):
             uncond_id_embed_path = os.path.join(dataset_path, 'n000002/pulid_id/uncond.npy')
             condition_list = [os.path.join(dataset_path, dirname, condition_type, basename + '.png') for (dirname, basename) in zip(dirname_list, basename_list)]
 
+            # 최종 셋팅
             self.src_img_list = src_img_list
             self.image_paths = img_list
             self.id_embed_paths = id_embed_list
@@ -254,15 +272,17 @@ class VGGDataset(torch.utils.data.Dataset):
             controlnet_list = []
             controlnet_ids = []
             controlnet_nums = []
-            id_embed_candidates_cache = {} # 캐시
-            for trg_id in tqdm(set(trg_ids)): # 캐싱
-                id_embed_candidates = glob(os.path.join(dataset_path, trg_id, id_dirname, '*.npy')) #
-                id_embed_candidates_cache[trg_id] = id_embed_candidates
+            if id_embed_candidates_cache is None:
+                id_embed_candidates_cache = {} # 캐시
+                for trg_id in tqdm(set(trg_ids)): # 캐싱
+                    id_embed_candidates = glob(os.path.join(dataset_path, trg_id, id_dirname, '*.npy')) #
+                    id_embed_candidates_cache[trg_id] = id_embed_candidates
             for idx, (trg_id, trg_num) in tqdm(enumerate(zip(trg_ids, trg_nums)), desc="Preparing pseudo dataset"):
                 id_embed_candidates = id_embed_candidates_cache[trg_id]
                 # 자기 자신 제외
                 id_embed_candidates = [p for p in id_embed_candidates if os.path.basename(p) != f"{trg_num}.npy"]
                 if len(id_embed_candidates) == 0:
+                    print (f"[WARN] No ID embed candidates found for {trg_id}, skipping sample.")
                     continue
                 else :
                     # Select candidate
@@ -318,9 +338,18 @@ class VGGDataset(torch.utils.data.Dataset):
             try:
                 # Processing
                 src_img = Image.open(self.src_img_list[idx]).convert('RGB')
-                img = Image.open(self.image_paths[idx]).convert('RGB')
+                src_img_basename = os.path.basename(self.src_img_list[idx]).split('.')[0] # e.g. 0001_01
+                img = Image.open(self.image_paths[idx]).convert('RGB') # GT target
                 controlnet_img = Image.open(self.controlnet_paths[idx]).convert('RGB')
-                face_id_embed = torch.Tensor(np.load(self.id_embed_paths[idx]))
+                if self.get_random_id_embed_every_step:
+                    # 매번 랜덤하게 다른 ID embed 사용
+                    id = self.id_embed_paths[idx].split('/')[-3] # e.g. n000002
+                    id_candidates = self.id_embed_candidates_cache[id]
+                    # 자기 자신밖에 없을수도 있으니, 제외 처리 안하고 랜덤 선택
+                    selected_id_embed = random.choice(id_candidates)
+                    face_id_embed = torch.Tensor(np.load(selected_id_embed))
+                else:
+                    face_id_embed = torch.Tensor(np.load(self.id_embed_paths[idx]))
                 gaze_embed = torch.Tensor(np.load(self.gaze_paths[idx])) if self.train_gaze else None
                 # original_width, original_height = img.size
                 
@@ -572,15 +601,24 @@ def test_function(model, save_path, file_name, test_dataset):
 
 
 def main():
+    # Set seed
+    seed = 0
+    random.seed(seed)
+    np.random.seed(seed)
+
+    # 1) PyTorch
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # 멀티 GPU/프로세스
+
     # Initialize
     config = get_config()
     training_config = config["train"]
     torch.cuda.set_device(int(os.environ.get("LOCAL_RANK", 0)))
 
     if config.get("debug", False):
+        print("[DEBUG] Debug mode is ON: accumulate_grad_batches set to 1, num_validation set to 1")
         config['accumulate_grad_batches'] = 1
         training_config['dataset']['num_validation'] = 1
-        print("[DEBUG] Debug mode is ON: accumulate_grad_batches set to 1, num_validation set to 1")
 
     # Load dataset text-to-image-2M
     # dataset = load_dataset(
@@ -601,6 +639,27 @@ def main():
         raise NotImplementedError
     print(f"[INFO] Using dataset type: {dataset_type}, with class {dataset_class}")
 
+    cache_vgg = training_config["dataset"].get("cache_vgg", True)
+    if cache_vgg :
+        vgg_dataset_path = training_config["dataset"]["dataset_path"] # '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan'
+        cache_vgg_path = os.path.join(vgg_dataset_path, 'id_embed_cache.pt')
+        if os.path.exists(cache_vgg_path):
+            print(f"[INFO] Loading cached VGG ID embed candidates from {cache_vgg_path}")
+            id_embed_candidates_cache = torch.load(cache_vgg_path)
+        else:
+            id_from = training_config["dataset"].get("id_from", "original")
+            if id_from == 'original':
+                id_dirname = 'pulid_id'
+            elif id_from == 'masked':
+                id_dirname = 'masked_pulid_id'
+            ids = natsorted(os.listdir(vgg_dataset_path))
+            id_embed_candidates_cache = {} # 캐시
+            for id in tqdm(set(ids)): # 캐싱
+                id_embed_candidates = glob(os.path.join(vgg_dataset_path, id, id_dirname, '*.npy'))
+                id_embed_candidates_cache[id] = id_embed_candidates
+            torch.save(id_embed_candidates_cache, cache_vgg_path)
+            print(f"[INFO] Cached VGG ID embed candidates saved to {cache_vgg_path}")
+
     train_dataset = dataset_class(
         dataset_path=training_config["dataset"]["dataset_path"],
         mode='train',
@@ -611,6 +670,8 @@ def main():
         swapped_path=training_config["dataset"].get("swapped_path", None),
         id_from = training_config["dataset"].get("id_from", "original"),
         swapped_condition_type=training_config["dataset"].get("swapped_condition_type", None),
+        id_embed_candidates_cache=id_embed_candidates_cache if cache_vgg and dataset_type == "vgg" else None,
+        get_random_id_embed_every_step=training_config["dataset"].get("get_random_id_embed_every_step", False),
 
     )
     test_dataset = dataset_class(
@@ -623,6 +684,8 @@ def main():
         swapped_path=training_config["dataset"].get("swapped_path", None),
         id_from = training_config["dataset"].get("id_from", "original"),
         swapped_condition_type=training_config["dataset"].get("swapped_condition_type", None),
+        id_embed_candidates_cache=id_embed_candidates_cache if cache_vgg and dataset_type == "vgg" else None,
+        get_random_id_embed_every_step=training_config["dataset"].get("get_random_id_embed_every_step", False),
     )
 
     # Initialize custom dataset
@@ -662,7 +725,9 @@ def main():
         model_config=config.get("model", {}),
         gradient_checkpointing=training_config.get("gradient_checkpointing", False),
         use_netarc=training_config.get("use_netarc", False),
+        netarc_path=training_config.get("netarc_path", None),
         use_irse50=training_config.get("use_irse50", False),
+        id_loss_thres=training_config.get("id_loss_thres", 0.5),
         train_omini=training_config.get("train_omini", False),
         train_pulid_enc=training_config.get("train_pulid_enc", False),
         train_pulid_ca=training_config.get("train_pulid_ca", False),

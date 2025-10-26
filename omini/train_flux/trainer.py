@@ -67,7 +67,9 @@ class OminiModel(L.LightningModule):
         optimizer_config: dict = None,
         gradient_checkpointing: bool = False,
         use_netarc: bool = False,
+        netarc_path: str = None,
         use_irse50: bool = False,
+        id_loss_thres: float = 0.5,
         train_omini: bool = False,
         train_pulid_enc : bool = False,
         train_pulid_ca: bool = False,
@@ -84,7 +86,7 @@ class OminiModel(L.LightningModule):
 
 
         # Load the Flux pipeline
-        self.transformer: FluxTransformer2DModelCA = FluxTransformer2DModelCA.from_pretrained(flux_pipe_id, torch_dtype=dtype, subfolder='transformer', low_cpu_mem_usage=False, device_map=None, use_netarc=use_netarc, use_irse50=use_irse50, use_gaze=train_gaze, gaze_conditioning_type=train_gaze_type ,gaze_type=gaze_type, local_rank=get_rank())
+        self.transformer: FluxTransformer2DModelCA = FluxTransformer2DModelCA.from_pretrained(flux_pipe_id, torch_dtype=dtype, subfolder='transformer', low_cpu_mem_usage=False, device_map=None, use_netarc=use_netarc, netarc_path=netarc_path, use_irse50=use_irse50, use_gaze=train_gaze, gaze_conditioning_type=train_gaze_type ,gaze_type=gaze_type, local_rank=get_rank())
         # self.transformer#.to(device)
 
         self.flux_pipe: FluxPipeline = FluxPipeline.from_pretrained(
@@ -109,6 +111,10 @@ class OminiModel(L.LightningModule):
             # for p in self.lora_layers:
             #     p.requires_grad_(False)
             self.lora_layers = []
+
+        # ID Loss settings
+        self.id_loss_thres = id_loss_thres
+        print(f"[INFO] ID loss threshold : t <= {self.id_loss_thres}")
 
         # add pulid training
         self.train_pulid_enc = train_pulid_enc
@@ -471,8 +477,8 @@ class OminiModel(L.LightningModule):
                 else:
                     raise NotImplementedError("ID loss model not implemented.")
                 
-                # timestep t에 따라서 weight 조절 : t <=0.33일때만 loss 적용
-                t_mask = (t <= 0.5).to(self.flux_pipe.dtype)
+                # ID Loss를 적용할 timestep  : t에 따라서 weight 조절 -- t <= id_loss_thres 일때만 loss 적용
+                t_mask = (t <= self.id_loss_thres).to(self.flux_pipe.dtype)
                 id_loss = (id_loss_per_sample * t_mask).mean() 
                 id_loss /= (t_mask.mean() + 1e-5) # Scaling by the number of valid samples
 
@@ -494,7 +500,7 @@ class OminiModel(L.LightningModule):
                         gaze_target = gaze_embed.to(gaze_pred.device, gaze_pred.dtype).detach().clone()
                         gaze_loss_per_sample = F.mse_loss(gaze_pred, gaze_target, reduction='none').mean(dim=1) # (B,)
 
-                        # timestep t에 따라서 weight 조절 : t <=0.5일때만 loss 적용
+                        # timestep t에 따라서 weight 조절 : t<=0.5일때만 loss 적용
                         t_mask = (t <= 0.5).to(self.flux_pipe.dtype)
 
                         # drop_gaze가 True인 경우 Mask
@@ -527,7 +533,7 @@ class OminiModel(L.LightningModule):
 
                         gaze_loss_per_sample = F.mse_loss(gaze_pred, gaze_trg, reduction='none').mean(dim=1) # (B,)
 
-                        # timestep t에 따라서 weight 조절 : t <=0.5일때만 loss 적용
+                        # timestep t에 따라서 weight 조절 : t<=0.5일때만 loss 적용
                         t_mask = (t <= 0.25).to(self.flux_pipe.dtype)
                         gaze_loss = (gaze_loss_per_sample * t_mask).mean()
                         gaze_loss /= (t_mask.mean() + 1e-5) # Scaling by the number of valid samples
@@ -622,7 +628,7 @@ class TrainingCallback(L.Callback):
         if self.use_wandb:
             report_dict = {
                 "steps": batch_idx,
-                "steps": self.total_steps,
+                "global_steps": pl_module.global_step,
                 "epoch": trainer.current_epoch,
                 "gradient_size": gradient_size,
             }
@@ -638,41 +644,42 @@ class TrainingCallback(L.Callback):
 
         if self.total_steps % self.print_every_n_steps == 0:
             print(
-                f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Batch: {batch_idx}, Loss: {pl_module.log_loss:.4f}, Gradient size: {gradient_size:.4f}, Max gradient size: {max_gradient_size:.4f} Recon loss: {pl_module.last_recon_loss:.4f}, ID loss: {pl_module.last_id_loss:.4f}, Gaze loss: {pl_module.last_gaze_loss:.4f}"
+                f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step}, Batch: {batch_idx}, Loss: {pl_module.log_loss:.4f}, Gradient size: {gradient_size:.4f}, Max gradient size: {max_gradient_size:.4f} Recon loss: {pl_module.last_recon_loss:.4f}, ID loss: {pl_module.last_id_loss:.4f}, Gaze loss: {pl_module.last_gaze_loss:.4f}"
             )
 
         # Save LoRA weights at specified intervals
-        if (self.total_steps % self.save_interval == 0 or self.total_steps == 1):
+        if (pl_module.global_step % self.save_interval == 0 or self.total_steps == 1):
             print(
-                f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps} - Saving LoRA weights"
+                f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step}, - Saving LoRA weights"
             )
-            os.makedirs(f"{self.save_path}/{self.run_name}/ckpt/{self.total_steps}", exist_ok=True)
+            ckpt_path = f"{self.save_path}/{self.run_name}/ckpt/step{self.total_steps}_global{pl_module.global_step}"
+            os.makedirs(ckpt_path, exist_ok=True)
             if pl_module.train_omini:
                 pl_module.save_lora(
-                    f"{self.save_path}/{self.run_name}/ckpt/{self.total_steps}"
+                    ckpt_path
                 )
             if pl_module.train_pulid_enc:
-                torch.save(pl_module.transformer.pulid_encoder.state_dict(), f"{self.save_path}/{self.run_name}/ckpt/{self.total_steps}/pulid_encoder.pth")
+                torch.save(pl_module.transformer.pulid_encoder.state_dict(), f"{ckpt_path}/pulid_encoder.pth")
             if pl_module.train_pulid_ca:
-                torch.save(pl_module.transformer.pulid_ca.state_dict(), f"{self.save_path}/{self.run_name}/ckpt/{self.total_steps}/pulid_ca.pth")
+                torch.save(pl_module.transformer.pulid_ca.state_dict(), f"{ckpt_path}/pulid_ca.pth")
             if pl_module.train_gaze:
                 if pl_module.train_gaze_type == 'temb' or pl_module.train_gaze_type == 'omini':
-                    torch.save(pl_module.transformer.gaze_temb_proj.state_dict(), f"{self.save_path}/{self.run_name}/ckpt/{self.total_steps}/gaze_temb_proj.pth")
+                    torch.save(pl_module.transformer.gaze_temb_proj.state_dict(), f"{ckpt_path}/gaze_temb_proj.pth")
                 elif pl_module.train_gaze_type == 'CA':
-                    torch.save(pl_module.transformer.gaze_ca.state_dict(), f"{self.save_path}/{self.run_name}/ckpt/{self.total_steps}/gaze_ca.pth")
+                    torch.save(pl_module.transformer.gaze_ca.state_dict(), f"{ckpt_path}/gaze_ca.pth")
                 else:
                     raise NotImplementedError("train_gaze_type not implemented:", pl_module.train_gaze_type)
 
         # Generate and save a sample image at specified intervals
-        if (self.total_steps % self.sample_interval == 0 or self.total_steps == 1) and self.test_function:
+        if (pl_module.global_step % self.sample_interval == 0 or self.total_steps == 1) and self.test_function:
             print(
-                f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps} - Generating a sample"
+                f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step} - Generating a sample"
             )
             pl_module.eval()
             trg_imgs, condition_imgs, result_imgs, src_imgs = self.test_function(
                 pl_module,
                 f"{self.save_path}/{self.run_name}/output",
-                f"lora_{self.total_steps}",
+                f"lora_{self.total_steps}_global_{pl_module.global_step}.png",
             )
 
             import matplotlib.pyplot as plt
