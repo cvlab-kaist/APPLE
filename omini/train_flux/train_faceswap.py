@@ -225,10 +225,11 @@ class VGGDataset(torch.utils.data.Dataset):
                     id = dirname # e.g. n000002
                     id_embed_candidates = glob(os.path.join(dataset_path, id, id_dirname, '*.npy')) #
                     id_embed_candidates_cache[id] = id_embed_candidates
-            for (dirname, basename) in zip(dirname_list, basename_list):
+            for num, (dirname, basename) in enumerate(zip(dirname_list, basename_list)):
                 id = dirname # e.g. n000002
                 if mode == 'test' and self.validation_with_other_src_id_embed:
                     print("[INFO] Validation with other src ID embed enabled. Validation by FaceSwap setting for 1st Stage.")
+                    random.seed(num) # Seed for reproducibility
                     id = random.choice([d for d in set(id_embed_candidates_cache.keys()) if d != id]) # test 시에는 자기 자신 제외한 다른 인물에서 선택
                     id_embed_candidates = id_embed_candidates_cache.get(id, []) 
                     print(f"[DEBUG] For target ID {dirname}, selected src ID {id} with {len(id_embed_candidates)} candidates.")

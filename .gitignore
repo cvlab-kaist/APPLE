@@ -11,3 +11,4 @@ runs/
 other_models/
 *.onnx
 *.sh
+*.yaml
