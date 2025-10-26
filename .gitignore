@@ -12,3 +12,4 @@ other_models/
 *.onnx
 *.sh
 *.yaml
+antelopev2

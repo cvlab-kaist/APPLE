@@ -701,12 +701,12 @@ class FluxTransformer2DModelCA(
         self.eva_transform_std = eva_transform_std
         
         # antelopev2
-        snapshot_download('DIAMONIK7777/antelopev2', local_dir='models/antelopev2')
+        snapshot_download('DIAMONIK7777/antelopev2', local_dir='./antelopev2')
         providers = ['CPUExecutionProvider'] if onnx_provider == 'cpu' \
             else [('CUDAExecutionProvider', {'device_id': local_rank})]
         self.app = FaceAnalysis(name='antelopev2', root='.', providers=providers)
         self.app.prepare(ctx_id=0, det_size=(640, 640))
-        self.handler_ante = insightface.model_zoo.get_model('models/antelopev2/glintr100.onnx',
+        self.handler_ante = insightface.model_zoo.get_model('./antelopev2/glintr100.onnx',
                                                             providers=providers)
         self.handler_ante.prepare(ctx_id=0)
 

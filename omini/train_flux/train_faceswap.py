@@ -157,7 +157,7 @@ class VGGDataset(torch.utils.data.Dataset):
         self.id_embed_candidates_cache = id_embed_candidates_cache
         self.get_random_id_embed_every_step = get_random_id_embed_every_step
         self.validation_with_other_src_id_embed = validation_with_other_src_id_embed
-        print(f"[INFO] VGGDataset w/ get_random_id_embed_every_step: {self.get_random_id_embed_every_step}")
+        print(f"[INFO] VGGDataset {mode} set w/ get_random_id_embed_every_step: {self.get_random_id_embed_every_step}")
 
         if id_from == 'original':
             id_dirname = 'pulid_id'
@@ -268,13 +268,13 @@ class VGGDataset(torch.utils.data.Dataset):
             self.controlnet_paths = condition_list
             self.gaze_paths = gaze_paths
 
-            # DEBUG 5개씩
-            print(f"[DEBUG] Sample src_img_list : {self.src_img_list[:5]}")
-            print(f"[DEBUG] Sample image_paths : {self.image_paths[:5]}")
-            print(f"[DEBUG] Sample id_embed_paths : {self.id_embed_paths[:5]}")
-            print(f"[DEBUG] Sample controlnet_paths : {self.controlnet_paths[:5]}")
-            if gaze_paths is not None:
-                print(f"[DEBUG] Sample gaze_paths : {self.gaze_paths[:5]}")
+            # # DEBUG 5개씩
+            # print(f"[DEBUG] Sample src_img_list : {self.src_img_list[:5]}")
+            # print(f"[DEBUG] Sample image_paths : {self.image_paths[:5]}")
+            # print(f"[DEBUG] Sample id_embed_paths : {self.id_embed_paths[:5]}")
+            # print(f"[DEBUG] Sample controlnet_paths : {self.controlnet_paths[:5]}")
+            # if gaze_paths is not None:
+            #     print(f"[DEBUG] Sample gaze_paths : {self.gaze_paths[:5]}")
             
             self.uncond_id_embed = torch.Tensor(np.load(uncond_id_embed_path))
 
