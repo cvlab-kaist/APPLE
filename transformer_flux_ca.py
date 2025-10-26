@@ -630,14 +630,14 @@ class FluxTransformer2DModelCA(
         self.use_irse50 = use_irse50
         self.use_gaze = use_gaze
 
+        # init ID loss model
+        self.netarc = None
         if use_netarc:
             if netarc_path is None:
                 raise ValueError('netarc_path must be provided when use_netarc is True')
             self.netarc = torch.load(netarc_path, weights_only=False)
             self.netarc.eval()
             print('[INFO] Using ArcFace ResNet18 model for ID loss')
-        else:
-            self.netarc = None
             
         if use_irse50:
             assert self.netarc is None, "Choose either irse50 or netarc"

@@ -15,6 +15,8 @@ from ..pipeline.flux_omini import Condition, convert_to_condition, generate_ca
 from glob import glob
 from natsort import natsorted
 from tqdm import tqdm
+from torchvision.transforms.functional import pil_to_tensor
+import torch.nn.functional as F
 
 class FFHQDataset(torch.utils.data.Dataset):
 
@@ -535,6 +537,7 @@ class ImageConditionDataset(Dataset):
 # TODO : for faceswap
 @torch.no_grad()
 def test_function(model, save_path, file_name, test_dataset):
+    # model : OminiModel
     print(f"[DEBUG] In test_function, LoRA weight mean: {model.transformer.transformer_blocks[0].attn.to_q.lora_A['default'].weight.data.mean()}")
 
     os.makedirs(save_path, exist_ok=True)
@@ -597,7 +600,20 @@ def test_function(model, save_path, file_name, test_dataset):
         src_img_pil.save(os.path.join(save_path, f"{file_name}_{condition_type}_{i}_src.jpg"))
         src_imgs.append(src_img_pil)
 
-    return trg_imgs, condition_imgs, result_imgs, src_imgs
+        # result, trg의 ID Loss 계산
+        val_recon_loss = 0.0
+        val_id_loss = 0.0
+        for result_img, trg_img in zip(result_imgs, trg_imgs):
+            val_id_loss += model.id_loss_func_from_pil(result_img, trg_img, model.flux_pipe.transformer.netarc).mean().item() # (1,)
+            result_img_pt = pil_to_tensor(result_img).float() / 255.0
+            trg_img_pt = pil_to_tensor(trg_img).float() / 255.0
+            val_recon_loss += F.mse_loss(result_img_pt, trg_img_pt).mean().item() # (1,)
+
+        val_recon_loss = val_recon_loss / len(result_imgs)
+        val_id_loss = val_id_loss / len(result_imgs)
+        val_loss = val_recon_loss + val_id_loss
+
+    return trg_imgs, condition_imgs, result_imgs, src_imgs, val_loss, val_recon_loss, val_id_loss
 
 
 def main():
@@ -619,6 +635,7 @@ def main():
         print("[DEBUG] Debug mode is ON: accumulate_grad_batches set to 1, num_validation set to 1")
         config['accumulate_grad_batches'] = 1
         training_config['dataset']['num_validation'] = 1
+        training_config['run_name'] = '[DEBUG]' + training_config['run_name']
 
     # Load dataset text-to-image-2M
     # dataset = load_dataset(

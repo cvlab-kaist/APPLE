@@ -1,7 +1,7 @@
 flux_path: "black-forest-labs/FLUX.1-Krea-dev"
 dtype: "bfloat16"
 
-debug: false
+debug: true
 
 model:
   independent_condition: false

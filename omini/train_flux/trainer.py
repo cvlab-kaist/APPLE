@@ -326,6 +326,59 @@ class OminiModel(L.LightningModule):
 
         return dists
 
+    def id_loss_func_from_pil(self, x_in_pil, targ_pil, embedder):
+        import torch.nn.functional as F
+        import numpy as np
+        from torchvision import transforms
+        import torchvision.transforms as T
+
+        embedder.eval()
+
+        x_in = T.ToTensor()(x_in_pil).to(self.flux_pipe.device, self.flux_pipe.dtype)
+        targ = T.ToTensor()(targ_pil).to(self.flux_pipe.device, self.flux_pipe.dtype)
+        
+        ### DEBUG
+        # targ = (targ + 1) / 2 # [0, 1] -> [0.5, 1]
+        # targ_pil = T.ToPILImage()(targ.cpu())
+        # targ_pil.save('debug.png')
+        
+        if self.transformer.use_netarc:
+            x_in = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(x_in) 
+            targ = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(targ)
+        elif self.transformer.use_irse50:
+            x_in = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])(x_in) 
+            targ = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])(targ)
+        
+
+        def cosin_metric(x1, x2):
+            return torch.sum(x1 * x2, dim=1) / (torch.norm(x1, dim=1) * torch.norm(x2, dim=1))
+
+        id_loss = torch.tensor(0)
+
+        # masked_input = x_in * self.mask
+        masked_input = x_in
+
+        if len(masked_input.shape) == 3:
+            masked_input = masked_input.unsqueeze(0)
+        if len(targ.shape) == 3:
+            targ = targ.unsqueeze(0)
+            
+        masked_input = F.interpolate(masked_input, (112, 112))
+        targ         = F.interpolate(targ, (112, 112))
+
+        # masked_input = self.image_augmentations(masked_input)
+
+        src_id  = embedder(masked_input)
+        src_id = F.normalize(src_id, p=2, dim=1) # (B, 512)
+
+        targ_id = embedder(targ.to(x_in.device, x_in.dtype))
+        targ_id = F.normalize(targ_id, p=2, dim=1) # (B, 512)
+
+        dists   = 1 - cosin_metric(src_id, targ_id) # (B,)
+
+
+        return dists
+
     def training_step(self, batch, batch_idx):
         if self.global_step % 10 == 0:
             print(f"[DEBUG] Training global step {self.global_step}, LoRA weight mean: {self.transformer.transformer_blocks[0].attn.to_q.lora_A['default'].weight.data.mean()}")
@@ -705,7 +758,7 @@ class TrainingCallback(L.Callback):
                 f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step} - Generating a sample"
             )
             pl_module.eval()
-            trg_imgs, condition_imgs, result_imgs, src_imgs = self.test_function(
+            trg_imgs, condition_imgs, result_imgs, src_imgs, val_loss, val_recon_loss, val_id_loss = self.test_function(
                 pl_module,
                 f"{self.save_path}/{self.run_name}/output",
                 f"lora_{self.total_steps}_global_{pl_module.global_step}.png",
@@ -742,6 +795,10 @@ class TrainingCallback(L.Callback):
                 # })
                 wandb.log({
                     'comparison': [wandb.Image(image) for image in grid_images],
+                    'val_loss': val_loss,
+                    'val_recon_loss': val_recon_loss,
+                    'val_id_loss': val_id_loss,
+                    'val_id_sim' : 1 - val_id_loss,
                 })
             pl_module.train()
 
