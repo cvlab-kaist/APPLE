@@ -50,7 +50,8 @@ train:
     pseudo: false # Whether to use synthetic pseudo dataset
     swapped_path: "/mnt/data6/vgg_swapped/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt80000_gs1.0_imgGS1.0_idGS1.0" # When using pseudo dataset, path to swapped images
     id_from: "masked" # Options: ["original", "masked"]
-    get_random_id_embed_every_step: true # Whether to use a random ID embed for each step
+    get_random_id_embed_every_step: true # 동일한 ID 내에서 매 훈련 스텝마다 랜덤 임베딩 선택
+    validation_with_other_src_id_embed: true # Whether to use different source ID embed for validation, 1) 1st Stage -> Validation by FaceSwap Setting 2) 2nd Stage PLEASE TURN OFF
     type: "img"
     urls:
       # (Uncomment the following lines to use more data)

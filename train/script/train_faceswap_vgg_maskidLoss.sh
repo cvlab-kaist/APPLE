@@ -1,5 +1,6 @@
 # *[Specify the config file path and the GPU devices to use]
 export CUDA_VISIBLE_DEVICES=0,1,2,3
+# export CUDA_VISIBLE_DEVICES=0
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # *[Specify the config file path]
 export OMINI_CONFIG='./train/config/faceswap_vgg_maskidLoss.yaml'
