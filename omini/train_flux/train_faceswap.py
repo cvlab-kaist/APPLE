@@ -239,6 +239,7 @@ class VGGDataset(torch.utils.data.Dataset):
                     else :
                         effective_dirname_list.append(dirname)
                         effective_basename_list.append(basename)
+                        random.seed(num) # Seed for reproducibility 
                         selected_id_embed = random.choice(id_embed_candidates) # 해당 ID 내에서 랜덤하게 ID Embed 선택
                         id_embed_list.append(selected_id_embed) 
                         src_img_list.append(os.path.join(dataset_path, id, os.path.basename(selected_id_embed).replace('.npy', '.jpg'))) # 해당 ID embed에 대응하는 이미지
