@@ -770,7 +770,7 @@ class TrainingCallback(L.Callback):
         if ((pl_module.global_step % self.sample_interval == 0 and pl_module.global_step != 0) or self.total_steps == 1) and self.test_function:
             
             # Avoid generating multiple times for the same global step : 만약 이전에 저장한 global step이 존재하고, 현재 global step과 같다면 패스
-            if pl_module.last_save_global_step is not None and pl_module.global_step == pl_module.last_save_global_step:
+            if pl_module.last_sample_global_step is not None and pl_module.global_step == pl_module.last_sample_global_step:
                 pass
             else :
                 print(
