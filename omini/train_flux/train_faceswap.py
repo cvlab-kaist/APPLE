@@ -611,8 +611,10 @@ def test_function(model, save_path, file_name, test_dataset):
         # result, trg의 ID Loss 계산
         val_recon_loss = 0.0
         val_id_loss = 0.0
-        for result_img, trg_img in zip(result_imgs, trg_imgs):
-            val_id_loss += model.id_loss_func_from_pil(result_img, trg_img, model.flux_pipe.transformer.netarc).mean().item() # (1,)
+        for result_img, trg_img, src_img in zip(result_imgs, trg_imgs, src_imgs):
+            # Src와 Result의 ID Loss 계산
+            val_id_loss += model.id_loss_func_from_pil(result_img, src_img, model.flux_pipe.transformer.netarc).mean().item() # (1,)
+            # Result와 Trg의 Reconstruction Loss 계산
             result_img_pt = pil_to_tensor(result_img).float() / 255.0
             trg_img_pt = pil_to_tensor(trg_img).float() / 255.0
             val_recon_loss += F.mse_loss(result_img_pt, trg_img_pt).mean().item() # (1,)

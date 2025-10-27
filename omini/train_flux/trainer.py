@@ -87,6 +87,9 @@ class OminiModel(L.LightningModule):
         self.model_config = model_config
         self.optimizer_config = optimizer_config
 
+        self.last_save_global_step = None
+        self.last_sample_global_step = None
+
 
         # Load the Flux pipeline
         self.transformer: FluxTransformer2DModelCA = FluxTransformer2DModelCA.from_pretrained(flux_pipe_id, torch_dtype=dtype, subfolder='transformer', low_cpu_mem_usage=False, device_map=None, use_netarc=use_netarc, netarc_path=netarc_path, use_irse50=use_irse50, use_gaze=train_gaze, gaze_conditioning_type=train_gaze_type ,gaze_type=gaze_type, local_rank=get_rank())
@@ -734,76 +737,91 @@ class TrainingCallback(L.Callback):
 
         # Save LoRA weights at specified intervals
         if ((pl_module.global_step % self.save_interval == 0 and pl_module.global_step != 0) or self.total_steps == 1):
-            print(
-                f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step}, - Saving LoRA weights"
-            )
-            ckpt_path = f"{self.save_path}/{self.run_name}/ckpt/step{self.total_steps}_global{pl_module.global_step}"
-            os.makedirs(ckpt_path, exist_ok=True)
-            if pl_module.train_omini:
-                pl_module.save_lora(
-                    ckpt_path
+            
+            # Avoid saving multiple times for the same global step
+            if pl_module.last_save_global_step is not None and pl_module.global_step == pl_module.last_save_global_step:
+                pass
+            else:
+                print(
+                    f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step}, - Saving LoRA weights"
                 )
-            if pl_module.train_pulid_enc:
-                torch.save(pl_module.transformer.pulid_encoder.state_dict(), f"{ckpt_path}/pulid_encoder.pth")
-            if pl_module.train_pulid_ca:
-                torch.save(pl_module.transformer.pulid_ca.state_dict(), f"{ckpt_path}/pulid_ca.pth")
-            if pl_module.train_gaze:
-                if pl_module.train_gaze_type == 'temb' or pl_module.train_gaze_type == 'omini':
-                    torch.save(pl_module.transformer.gaze_temb_proj.state_dict(), f"{ckpt_path}/gaze_temb_proj.pth")
-                elif pl_module.train_gaze_type == 'CA':
-                    torch.save(pl_module.transformer.gaze_ca.state_dict(), f"{ckpt_path}/gaze_ca.pth")
-                else:
-                    raise NotImplementedError("train_gaze_type not implemented:", pl_module.train_gaze_type)
+                ckpt_path = f"{self.save_path}/{self.run_name}/ckpt/step{self.total_steps}_global{pl_module.global_step}"
+                os.makedirs(ckpt_path, exist_ok=True)
+                if pl_module.train_omini:
+                    pl_module.save_lora(
+                        ckpt_path
+                    )
+                if pl_module.train_pulid_enc:
+                    torch.save(pl_module.transformer.pulid_encoder.state_dict(), f"{ckpt_path}/pulid_encoder.pth")
+                if pl_module.train_pulid_ca:
+                    torch.save(pl_module.transformer.pulid_ca.state_dict(), f"{ckpt_path}/pulid_ca.pth")
+                if pl_module.train_gaze:
+                    if pl_module.train_gaze_type == 'temb' or pl_module.train_gaze_type == 'omini':
+                        torch.save(pl_module.transformer.gaze_temb_proj.state_dict(), f"{ckpt_path}/gaze_temb_proj.pth")
+                    elif pl_module.train_gaze_type == 'CA':
+                        torch.save(pl_module.transformer.gaze_ca.state_dict(), f"{ckpt_path}/gaze_ca.pth")
+                    else:
+                        raise NotImplementedError("train_gaze_type not implemented:", pl_module.train_gaze_type)
+                    
+
+                pl_module.last_save_global_step = pl_module.global_step
 
         # Generate and save a sample image at specified intervals
-        if ((pl_module.global_step % self.save_interval == 0 and pl_module.global_step != 0) or self.total_steps == 1) and self.test_function:
-            print(
-                f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step} - Generating a sample"
-            )
-            pl_module.eval()
-            trg_imgs, condition_imgs, result_imgs, src_imgs, val_loss, val_recon_loss, val_id_loss = self.test_function(
-                pl_module,
-                f"{self.save_path}/{self.run_name}/output",
-                f"lora_{self.total_steps}_global_{pl_module.global_step}.png",
-            )
+        if ((pl_module.global_step % self.sample_interval == 0 and pl_module.global_step != 0) or self.total_steps == 1) and self.test_function:
+            
+            # Avoid generating multiple times for the same global step : 만약 이전에 저장한 global step이 존재하고, 현재 global step과 같다면 패스
+            if pl_module.last_save_global_step is not None and pl_module.global_step == pl_module.last_save_global_step:
+                pass
+            else :
+                print(
+                    f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step} - Generating a sample"
+                )
+                pl_module.eval()
+                trg_imgs, condition_imgs, result_imgs, src_imgs, val_loss, val_recon_loss, val_id_loss = self.test_function(
+                    pl_module,
+                    f"{self.save_path}/{self.run_name}/output",
+                    f"lora_{self.total_steps}_global_{pl_module.global_step}.png",
+                )
 
-            import matplotlib.pyplot as plt
-            from PIL import Image
-            import io  # to handle in-memory binary streams
+                import matplotlib.pyplot as plt
+                from PIL import Image
+                import io  # to handle in-memory binary streams
 
-            grid_images = []
-            for trg, cond, res, src in zip(trg_imgs, condition_imgs, result_imgs, src_imgs):
-                fig, axs = plt.subplots(1, 4, figsize=(12, 3))  # 4-column subplot
-                for ax, img, title in zip(axs, [src, cond, res, trg], ['Source', 'Condition', 'Result', 'Target']):
-                    ax.imshow(img)
-                    ax.set_title(title)
-                    ax.axis('off')
-                fig.tight_layout()
+                grid_images = []
+                for trg, cond, res, src in zip(trg_imgs, condition_imgs, result_imgs, src_imgs):
+                    fig, axs = plt.subplots(1, 4, figsize=(12, 3))  # 4-column subplot
+                    for ax, img, title in zip(axs, [src, cond, res, trg], ['Source', 'Condition', 'Result', 'Target']):
+                        ax.imshow(img)
+                        ax.set_title(title)
+                        ax.axis('off')
+                    fig.tight_layout()
 
-                # Convert the figure to PIL Image
-                buf = io.BytesIO()
-                fig.savefig(buf, format='png')  # save figure to in-memory buffer
-                buf.seek(0)  # rewind to beginning
-                pil_img = Image.open(buf).convert("RGB")  # open as PIL Image and ensure RGB
-                grid_images.append(pil_img)
+                    # Convert the figure to PIL Image
+                    buf = io.BytesIO()
+                    fig.savefig(buf, format='png')  # save figure to in-memory buffer
+                    buf.seek(0)  # rewind to beginning
+                    pil_img = Image.open(buf).convert("RGB")  # open as PIL Image and ensure RGB
+                    grid_images.append(pil_img)
 
-                plt.close(fig)  # close to free memory
+                    plt.close(fig)  # close to free memory
 
 
-            if self.use_wandb :
-                # wandb.log({
-                #     'original' : [wandb.Image(image) for image in trg_imgs],
-                #     'condition' : [wandb.Image(image) for image in condition_imgs],
-                #     'result' : [wandb.Image(image) for image in result_imgs],
-                # })
-                wandb.log({
-                    'comparison': [wandb.Image(image) for image in grid_images],
-                    'val_loss': val_loss,
-                    'val_recon_loss': val_recon_loss,
-                    'val_id_loss': val_id_loss,
-                    'val_id_sim' : 1 - val_id_loss,
-                })
-            pl_module.train()
+                if self.use_wandb :
+                    # wandb.log({
+                    #     'original' : [wandb.Image(image) for image in trg_imgs],
+                    #     'condition' : [wandb.Image(image) for image in condition_imgs],
+                    #     'result' : [wandb.Image(image) for image in result_imgs],
+                    # })
+                    wandb.log({
+                        'comparison': [wandb.Image(image) for image in grid_images],
+                        'val_loss': val_loss,
+                        'val_recon_loss': val_recon_loss,
+                        'val_id_loss': val_id_loss,
+                        'val_id_sim' : 1 - val_id_loss,
+                    })
+                pl_module.train()
+
+                pl_module.last_sample_global_step = pl_module.global_step
 
 
 def train(dataset, trainable_model, config, test_function):
