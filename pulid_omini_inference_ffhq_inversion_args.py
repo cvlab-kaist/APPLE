@@ -23,7 +23,9 @@ def main(args):
     inverse_cond = args.inverse_cond
     run_name = args.run_name
     ckpt = args.ckpt
-    ffhq_base = args.ffhq_base
+    base_path = args.base_path
+    ffhq_base = args.ffhq_base_path
+
 
 
     print(f"=== Inversion with condition: {inverse_cond} ===")
@@ -57,7 +59,6 @@ def main(args):
     from omini.pipeline.flux_omini import generate_ca, Condition, convert_to_condition, generate_ca_inv
 
 
-    device = 'cuda'
     flux = FluxPipeline.from_pretrained(model_id, 
                                         transformer=transformer, 
                                         vae=vae,
@@ -248,3 +249,5 @@ if __name__ == '__main__':
     parser.add_argument("--ckpt", type=str, required=True, help="Checkpoint step or name")
 
     args = parser.parse_args()
+
+    main(args)

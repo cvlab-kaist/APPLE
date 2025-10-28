@@ -1,7 +1,7 @@
 import os
 os.environ['HF_HUB_DISABLE_XET'] = '1'
 os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
-os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 from transformer_flux_ca import FluxTransformer2DModelCA
 from diffusers import FluxTransformer2DModel, AutoencoderKL
 from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5TokenizerFast

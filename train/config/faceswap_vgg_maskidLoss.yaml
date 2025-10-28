@@ -8,13 +8,13 @@ model:
 
 train:
   accumulate_grad_batches: 4
-  dataloader_workers: 5
-  save_interval: 1000  # Global step
+  dataloader_workers: 10
+  save_interval: 250  # Global step
   sample_interval: 250 # Global step
   max_steps: -1
   gradient_checkpointing: true # (Turn off for faster training)
   save_path: "runs"
-  run_name: "pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_train[omini]"
+  run_name: "pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_train[omini]_globalresume2K"
   # ID loss training options
   use_netarc: true # (Set to true when using ID loss with ArcFace resnet18, SimSwap ver)
   netarc_path: '/mnt/data3/jiwon/fluxswap/checkpoints/arcface_checkpoint.tar'
@@ -37,7 +37,8 @@ train:
   train_gaze_backbone_path: 
   train_gaze_loss_type : 'pred' # 'feature' for feature L2 loss, 'pred' for (yaw, pitch) prediction loss
 
-  lora_path : '/mnt/data3/jiwon/OminiControl/runs/faceswap_scratch_lora64_20251004-005548/ckpt/43000/default.safetensors'
+  lora_path : '/mnt/data3/jiwon/fluxswap/runs/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_train[omini]/ckpt/step8000_global2000/default.safetensors'
+  # lora_path : '/mnt/data3/jiwon/OminiControl/runs/faceswap_scratch_lora64_20251004-005548/ckpt/43000/default.safetensors'
   # lora_path: '/mnt/data3/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_20251014-162532/ckpt/80000/default.safetensors'
 
   # Specify the type of condition to use. 

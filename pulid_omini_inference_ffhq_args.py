@@ -35,6 +35,7 @@ def main(args):
     model_id = args.model_id
     # model_id = 'black-forest-labs/FLUX.1-dev'
     device = f'cuda:{args.gpu_id}'
+    print(f"[INFO] Using device: {device}")
     torch.cuda.set_device(device)
     # transformer = FluxTransformer2DModelCA.from_pretrained("black-forest-labs/FLUX.1-dev", torch_dtype=weight_dtype, subfolder='transformer', low_cpu_mem_usage=False, device_map=None)
     # transformer_dev = FluxTransformer2DModel.from_pretrained('black-forest-labs/FLUX.1-dev', torch_dtype=weight_dtype, subfolder='transformer')
@@ -56,7 +57,6 @@ def main(args):
     from omini.pipeline.flux_omini import generate_ca, Condition, convert_to_condition, generate_ca_inv
 
 
-    device = 'cuda'
     flux = FluxPipeline.from_pretrained(model_id, 
                                         transformer=transformer, 
                                         vae=vae,
@@ -231,3 +231,5 @@ if __name__ == '__main__':
     parser.add_argument("--ckpt", type=str, required=True, help="Checkpoint step or name")
 
     args = parser.parse_args()
+
+    main(args)
