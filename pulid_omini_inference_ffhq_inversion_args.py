@@ -37,8 +37,8 @@ def main(args):
     weight_dtype = torch.bfloat16
     model_id = args.model_id
     # model_id = 'black-forest-labs/FLUX.1-dev'
-    device = f'cuda:{args.gpu_id}'
-    torch.cuda.set_device(device)
+    device = 'cuda'
+    print(f"[INFO] Using device: {device}")
     # transformer = FluxTransformer2DModelCA.from_pretrained("black-forest-labs/FLUX.1-dev", torch_dtype=weight_dtype, subfolder='transformer', low_cpu_mem_usage=False, device_map=None)
     # transformer_dev = FluxTransformer2DModel.from_pretrained('black-forest-labs/FLUX.1-dev', torch_dtype=weight_dtype, subfolder='transformer')
     transformer = FluxTransformer2DModelCA.from_pretrained(model_id, torch_dtype=weight_dtype, 

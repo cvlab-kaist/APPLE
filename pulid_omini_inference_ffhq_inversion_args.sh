@@ -1,4 +1,4 @@
-python pulid_omini_inference_ffhq_inversion_args.py \
+CUDA_VISIBLE_DEVICES=0python pulid_omini_inference_ffhq_inversion_args.py \
     --run_name pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_loss[lpips_t0.3]_train[omini]_globalresume2K \
     --ckpt step32000_global8000 \
     --gpu_id 0 \
