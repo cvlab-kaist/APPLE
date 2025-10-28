@@ -1,7 +1,7 @@
 import os
 os.environ['HF_HUB_DISABLE_XET'] = '1'
 os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 from transformer_flux_ca import FluxTransformer2DModelCA
 # from diffusers import FluxTransformer2DModel
 import torch
@@ -56,9 +56,17 @@ flux = FluxPipelineCA.from_pretrained("black-forest-labs/FLUX.1-Krea-dev", trans
 # output_dir = f'./results/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt60000_gaze_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 
 
-ckpt = 20000
-lora_file_path = f'/mnt/data3/jiwon/fluxswap/runs/pretrained[ffhq43k]_dataset[vgg]_loss[maskid_netarc_t0.5]_train[omini]/ckpt/{ckpt}/default.safetensors'
-output_dir = f'./results/pretrained[ffhq43k]_dataset[vgg]_loss[maskid_netarc_t0.5]_train[omini]_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval/base'
+# ckpt = 20000
+# lora_file_path = f'/mnt/data3/jiwon/fluxswap/runs/pretrained[ffhq43k]_dataset[vgg]_loss[maskid_netarc_t0.5]_train[omini]/ckpt/{ckpt}/default.safetensors'
+# output_dir = f'./results/pretrained[ffhq43k]_dataset[vgg]_loss[maskid_netarc_t0.5]_train[omini]_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval/base'
+
+ckpt = 'step32000_global8000'
+lora_file_path = f'/home/work/.project/jiwon/fluxswap/runs/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_train[omini]_globalresume2K/ckpt/{ckpt}/default.safetensors'
+output_dir = f'/home/work/.project/jiwon/fluxswap/results/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_train[omini]_globalresume2K_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval/base'
+
+# ckpt = 'step32000_global8000'
+# lora_file_path = f'/home/work/.project/jiwon/fluxswap/runs/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_loss[lpips_t0.3]_train[omini]_globalresume2K/ckpt/{ckpt}/default.safetensors'
+# output_dir = f'/home/work/.project/jiwon/fluxswap/results/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_loss[lpips_t0.3]_train[omini]_globalresume2K_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval/base'
 
 adapter_name = 'default'
 print(f"Loading LoRA for adapter '{adapter_name}' from {lora_file_path}")
@@ -84,8 +92,9 @@ from PIL import Image
 # output_dir = './results_pulid_omini/vgg_src/clsUncond_hiddenUncond'
 os.makedirs(output_dir, exist_ok=True)
 
-src_img_path_list = sorted(glob('/mnt/data2/dataset/ffhq_eval/src/*.jpg'))
-trg_img_path_base = '/mnt/data2/dataset/ffhq_eval/trg'
+ffhq_base = '/home/work/.project/jiwon/dataset/ffhq_eval'
+src_img_path_list = sorted(glob(os.path.join(ffhq_base, 'src/*.jpg')))
+trg_img_path_base = os.path.join(ffhq_base, 'trg')
 
 # for id_guidance_scale in [1.0]:
 # for id_guidance_scale in [1.5]:
