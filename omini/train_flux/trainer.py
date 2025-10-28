@@ -48,6 +48,8 @@ def init_wandb(wandb_config, run_name):
         wandb.init(
             project=wandb_config["project"],
             name=run_name,
+            id=os.environ.get("WANDB_RUN_ID", None),
+            resume="allow",
             config={},
         )
     except Exception as e:
@@ -693,8 +695,18 @@ class TrainingCallback(L.Callback):
         )
         print("[INFO] Use WanDB:", self.use_wandb)
 
+
         self.total_steps = 0
+        self.global_step = 0
+        self.last_sample_global_step = None
+        self.last_save_global_step = None
         self.test_function = test_function
+
+        # Resume settings
+        self.resume_step = training_config.get("resume_step", 0)
+        self.resume_global_step = training_config.get("resume_global_step", 0)
+        self.total_steps += self.resume_step # resume step부터 기록하도록 함
+        
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         gradient_size = 0
@@ -709,12 +721,13 @@ class TrainingCallback(L.Callback):
             gradient_size /= count
 
         self.total_steps += 1
+        self.global_step = self.resume_global_step + pl_module.global_step # resume global step + 현재 global step
 
         # Print training progress every n steps
         if self.use_wandb:
             report_dict = {
                 "steps": batch_idx,
-                "global_steps": pl_module.global_step,
+                "global_steps": self.global_step,
                 "epoch": trainer.current_epoch,
                 "gradient_size": gradient_size,
             }
@@ -732,20 +745,20 @@ class TrainingCallback(L.Callback):
 
         if self.total_steps % self.print_every_n_steps == 0:
             print(
-                f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step}, Batch: {batch_idx}, Loss: {pl_module.log_loss:.4f}, Gradient size: {gradient_size:.4f}, Max gradient size: {max_gradient_size:.4f} Recon loss: {pl_module.last_recon_loss:.4f}, ID loss: {pl_module.last_id_loss:.4f}, Gaze loss: {pl_module.last_gaze_loss:.4f}, LPIPS loss: {pl_module.last_lpips_loss:.4f}"
+                f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {self.global_step}, Batch: {batch_idx}, Loss: {pl_module.log_loss:.4f}, Gradient size: {gradient_size:.4f}, Max gradient size: {max_gradient_size:.4f} Recon loss: {pl_module.last_recon_loss:.4f}, ID loss: {pl_module.last_id_loss:.4f}, Gaze loss: {pl_module.last_gaze_loss:.4f}, LPIPS loss: {pl_module.last_lpips_loss:.4f}"
             )
 
         # Save LoRA weights at specified intervals
-        if ((pl_module.global_step % self.save_interval == 0 and pl_module.global_step != 0) or self.total_steps == 1):
-            
+        if ((self.global_step % self.save_interval == 0 and self.global_step != 0) or self.total_steps == 1):
+
             # Avoid saving multiple times for the same global step
-            if pl_module.last_save_global_step is not None and pl_module.global_step == pl_module.last_save_global_step:
+            if self.last_save_global_step is not None and self.global_step == self.last_save_global_step:
                 pass
             else:
                 print(
-                    f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step}, - Saving LoRA weights"
+                    f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {self.global_step}, - Saving LoRA weights"
                 )
-                ckpt_path = f"{self.save_path}/{self.run_name}/ckpt/step{self.total_steps}_global{pl_module.global_step}"
+                ckpt_path = f"{self.save_path}/{self.run_name}/ckpt/step{self.total_steps}_global{self.global_step}"
                 os.makedirs(ckpt_path, exist_ok=True)
                 if pl_module.train_omini:
                     pl_module.save_lora(
@@ -764,23 +777,26 @@ class TrainingCallback(L.Callback):
                         raise NotImplementedError("train_gaze_type not implemented:", pl_module.train_gaze_type)
                     
 
-                pl_module.last_save_global_step = pl_module.global_step
+                self.last_save_global_step = self.global_step
 
         # Generate and save a sample image at specified intervals
-        if ((pl_module.global_step % self.sample_interval == 0 and pl_module.global_step != 0) or self.total_steps == 1) and self.test_function:
+        # 기록 조건
+        # 1) 맨 처음 시작한 경우 : total_steps == 1
+        # 2) global step 기준 : sample_interval 마다
+        if ((self.global_step % self.sample_interval == 0 and self.global_step != 0) or self.total_steps == 1) and self.test_function:
             
             # Avoid generating multiple times for the same global step : 만약 이전에 저장한 global step이 존재하고, 현재 global step과 같다면 패스
-            if pl_module.last_sample_global_step is not None and pl_module.global_step == pl_module.last_sample_global_step:
+            if self.last_sample_global_step is not None and self.global_step == self.last_sample_global_step:
                 pass
-            else :
+            else:
                 print(
-                    f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {pl_module.global_step} - Generating a sample"
+                    f"Epoch: {trainer.current_epoch}, Steps: {self.total_steps}, Global Steps: {self.global_step} - Generating a sample"
                 )
                 pl_module.eval()
                 trg_imgs, condition_imgs, result_imgs, src_imgs, val_loss, val_recon_loss, val_id_loss = self.test_function(
                     pl_module,
                     f"{self.save_path}/{self.run_name}/output",
-                    f"lora_{self.total_steps}_global_{pl_module.global_step}.png",
+                    f"lora_{self.total_steps}_global_{self.global_step}.png",
                 )
 
                 import matplotlib.pyplot as plt
@@ -821,7 +837,7 @@ class TrainingCallback(L.Callback):
                     })
                 pl_module.train()
 
-                pl_module.last_sample_global_step = pl_module.global_step
+                self.last_sample_global_step = self.global_step
 
 
 def train(dataset, trainable_model, config, test_function):
