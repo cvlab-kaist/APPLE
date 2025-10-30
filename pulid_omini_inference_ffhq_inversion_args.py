@@ -245,7 +245,8 @@ if __name__ == '__main__':
     parser.add_argument("--model_id", type=str, default='black-forest-labs/FLUX.1-Krea-dev', help="Model ID or path")
     parser.add_argument("--gpu_id", type=str, default='0', help="GPU ID to use")
     parser.add_argument("--run_name", type=str, required=True, help="Run name for LoRA weights") # pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_loss[lpips_t0.3]_train[omini]_globalresume2K
-    parser.add_argument("--ffhq_base", type=str, default='/home/work/.project/jiwon/dataset/ffhq_eval', help="FFHQ eval dataset base path")
+    parser.add_argument("--base_path", type=str, default='{base_path}', help="Model name")
+    parser.add_argument("--ffhq_base_path", type=str, default='/home/work/.project/jiwon/dataset/ffhq_eval', help="FFHQ eval dataset base path")
     parser.add_argument("--ckpt", type=str, required=True, help="Checkpoint step or name")
 
     args = parser.parse_args()

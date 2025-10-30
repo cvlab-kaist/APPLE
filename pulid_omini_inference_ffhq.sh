@@ -19,9 +19,19 @@
 #     --base_path /mnt/data3/jiwon/fluxswap \
 #     --ffhq_base_path /mnt/data2/dataset/ffhq_eval
 
-CUDA_VISIBLE_DEVICES=1 python pulid_omini_inference_ffhq_args.py \
-    --run_name pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.5]_loss[lpips_t0.5]_train[omini]_globalresume2K \
-    --ckpt step32000_global8000 \
+# CUDA_VISIBLE_DEVICES=2 python pulid_omini_inference_ffhq_args.py \
+#     --run_name pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.5]_loss[lpips_t0.5]_train[omini]_globalresume2K \
+#     --ckpt step32000_global8000 \
+#     --gpu_id 0 \
+#     --guidance_scale 1.0 \
+#     --image_guidance_scale 1.0 \
+#     --id_guidance_scale 1.0 \
+#     --base_path /mnt/data3/jiwon/fluxswap \
+#     --ffhq_base_path /mnt/data2/dataset/ffhq_eval
+
+CUDA_VISIBLE_DEVICES=2 python pulid_omini_inference_ffhq_args.py \
+    --run_name "faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt80000_gs1.0_imgGS1.0_idGS1.0" \
+    --ckpt 8000 \
     --gpu_id 0 \
     --guidance_scale 1.0 \
     --image_guidance_scale 1.0 \

@@ -90,6 +90,7 @@ flux = FluxPipeline.from_pretrained(model_id,
 # lora_file_path = f'/mnt/data3/jiwon/fluxswap/runs/pretrained[ffhq43k]_dataset[vgg]_loss[maskid_netarc_t0.5]_train[omini]/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/pretrained[ffhq43k]_dataset[vgg]_loss[maskid_netarc_t0.5]_train[omini]_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval/inv_{inverse_cond}_{inverse_steps}/'
 # os.makedirs(output_dir, exist_ok=True)
+<<<<<<< Updated upstream
 
 # ckpt = 'step32000_global8000'
 # lora_file_path = f'/home/work/.project/jiwon/fluxswap/runs/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_train[omini]_globalresume2K/ckpt/{ckpt}/default.safetensors'
@@ -98,6 +99,8 @@ flux = FluxPipeline.from_pretrained(model_id,
 ckpt = 'step32000_global8000'
 lora_file_path = f'/home/work/.project/jiwon/fluxswap/runs/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_loss[lpips_t0.3]_train[omini]_globalresume2K/ckpt/{ckpt}/default.safetensors'
 output_dir = f'/home/work/.project/jiwon/fluxswap/results/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_loss[lpips_t0.3]_train[omini]_globalresume2K_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval/inv_{inverse_cond}_{inverse_steps}'
+=======
+>>>>>>> Stashed changes
 
 adapter_name = 'default'
 print(f"Loading LoRA for adapter '{adapter_name}' from {lora_file_path}")
