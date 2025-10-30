@@ -116,6 +116,12 @@ def main(args):
         trg_img = Image.open(trg_img_path).convert('RGB').resize((512,512))
         # trg_img.save(f"{output_dir}/{src_num}_trg.png")
 
+        img_save_fname = f"{output_dir}/{src_num}.png"
+        if os.path.exists(img_save_fname):
+            if rank == 0:
+                print(f"Image {img_save_fname} already exists. Skipping...")
+            continue
+
         cond_img_path = os.path.join (trg_img_path_base, 'condition_blended_image_blurdownsample8_segGlass_landmark', f"{src_num}.png")
         condition_img = Image.open(cond_img_path).convert('RGB')
         
@@ -177,11 +183,6 @@ def main(args):
         prompt = 'a photo of human face'
         negative_prompt = ''
 
-        img_save_fname = f"{output_dir}/{src_num}.png"
-        if os.path.exists(img_save_fname):
-            if rank == 0:
-                print(f"Image {img_save_fname} already exists. Skipping...")
-            continue
 
         image_list = []
 
