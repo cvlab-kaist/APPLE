@@ -47,7 +47,7 @@ def main(args):
     # transformer = FluxTransformer2DModelCA.from_pretrained("black-forest-labs/FLUX.1-dev", torch_dtype=weight_dtype, subfolder='transformer', low_cpu_mem_usage=False, device_map=None)
     # transformer_dev = FluxTransformer2DModel.from_pretrained('black-forest-labs/FLUX.1-dev', torch_dtype=weight_dtype, subfolder='transformer')
     transformer = FluxTransformer2DModelCA.from_pretrained(model_id, torch_dtype=weight_dtype, 
-    subfolder='transformer', low_cpu_mem_usage=False, device_map=None, use_gaze=use_gaze)
+    subfolder='transformer', low_cpu_mem_usage=False, device_map=None, use_gaze=use_gaze, local_rank=rank)
 
     vae = AutoencoderKL.from_pretrained(model_id, subfolder="vae", torch_dtype=weight_dtype).to(device)
     text_encoder = CLIPTextModel.from_pretrained(model_id, subfolder="text_encoder", torch_dtype=weight_dtype).to(device)
@@ -105,7 +105,7 @@ def main(args):
     src_img_path_list = src_img_path_list[rank::world_size]
     trg_img_path_base = os.path.join(ffhq_base, 'trg')
 
-    for src_img_path in tqdm(src_img_path_list, desc=f'GPU {rank} Processing Image', disable=(rank!=0)):
+    for src_img_path in tqdm(src_img_path_list, desc=f'GPU {rank} Processing Image'):
         prompt="a photo of human face",
         neg_prompt = ""
         true_cfg = 1.0
