@@ -126,10 +126,10 @@ class Condition(object):
         self.is_complement = is_complement
 
     def encode(
-        self, pipe: FluxPipeline, empty: bool = False, execution_device="cuda"
+        self, pipe: FluxPipeline, empty: bool = False, device="cuda"
     ) -> Tuple[torch.Tensor, torch.Tensor, int]:
         condition_empty = Image.new("RGB", self.condition.size, (0, 0, 0))
-        tokens, ids = encode_images(pipe, condition_empty if empty else self.condition, execution_device=execution_device)
+        tokens, ids = encode_images(pipe, condition_empty if empty else self.condition, execution_device=device)
 
         if self.position_delta is not None:
             ids[:, 1] += self.position_delta[0]
@@ -1026,11 +1026,11 @@ def generate_ca(
     c_projections, c_guidances, c_adapters = ([], [], [])
     complement_cond = None
     for condition in conditions:
-        tokens, ids = condition.encode(self)
+        tokens, ids = condition.encode(self, empty=False, device=device)
         c_latents.append(tokens)  # [batch_size, token_n, token_dim]
         # Empty condition for unconditioned image
         if image_guidance_scale != 1.0:
-            uc_latents.append(condition.encode(self, empty=True)[0])
+            uc_latents.append(condition.encode(self, empty=True, device=device)[0])
         c_ids.append(ids)  # [token_n, id_dim(3)]
         c_timesteps.append(torch.zeros([1], device=device))
         c_projections.append(pooled_prompt_embeds)
@@ -1373,7 +1373,7 @@ def generate_ca_inv(
     if inverse and inverse_img is not None:
         target_size = (width, height) if height is not None and width is not None else None
         inverse_img_latents, inverse_latent_image_ids, height, width, ori_height, ori_width = encode_img(
-            self, inverse_img, prompt_embeds.dtype, target_size=target_size
+            self, inverse_img, prompt_embeds.dtype, target_size=target_size, device=device
         )
 
     # Prepare latent variables
@@ -1399,11 +1399,11 @@ def generate_ca_inv(
     c_projections, c_guidances, c_adapters = ([], [], [])
     complement_cond = None
     for condition in conditions:
-        tokens, ids = condition.encode(self)
+        tokens, ids = condition.encode(self, empty=False, device=device)
         c_latents.append(tokens)  # [batch_size, token_n, token_dim]
         # Empty condition for unconditioned image
         if image_guidance_scale != 1.0:
-            uc_latents.append(condition.encode(self, empty=True)[0])
+            uc_latents.append(condition.encode(self, empty=True, device=device)[0])
         c_ids.append(ids)  # [token_n, id_dim(3)]
         c_timesteps.append(torch.zeros([1], device=device))
         c_projections.append(pooled_prompt_embeds)
