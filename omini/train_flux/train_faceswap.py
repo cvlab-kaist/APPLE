@@ -158,6 +158,7 @@ class VGGDataset(torch.utils.data.Dataset):
         self.get_random_id_embed_every_step = get_random_id_embed_every_step
         self.validation_with_other_src_id_embed = validation_with_other_src_id_embed
         print(f"[INFO] VGGDataset {mode} set w/ get_random_id_embed_every_step: {self.get_random_id_embed_every_step}")
+        print(f"[INFO] condition_type: {condition_type}")
 
         if id_from == 'original':
             id_dirname = 'pulid_id'
@@ -691,7 +692,7 @@ def main():
         dataset_path=training_config["dataset"]["dataset_path"],
         mode='train',
         num_validation = training_config["dataset"].get("num_validation", 5),
-        condition_type='condition_blended_image_blurdownsample8_segGlass_landmark',
+        condition_type=training_config["dataset"].get("condition_type", 'condition_blended_image_blurdownsample8_segGlass_landmark'),
         gaze_type=training_config.get("gaze_type", 'unigaze'),
         pseudo=training_config["dataset"].get("pseudo", False),
         swapped_path=training_config["dataset"].get("swapped_path", None),
@@ -706,7 +707,7 @@ def main():
         dataset_path=training_config["dataset"]["dataset_path"],
         mode='test',
         num_validation = training_config["dataset"].get("num_validation", 5),
-        condition_type='condition_blended_image_blurdownsample8_segGlass_landmark',
+        condition_type= training_config["dataset"].get("condition_type", 'condition_blended_image_blurdownsample8_segGlass_landmark'),
         gaze_type=training_config.get("gaze_type", 'unigaze'),
         pseudo=training_config["dataset"].get("pseudo", False),
         swapped_path=training_config["dataset"].get("swapped_path", None),
