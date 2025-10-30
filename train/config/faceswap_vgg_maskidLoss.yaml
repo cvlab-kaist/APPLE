@@ -7,23 +7,24 @@ model:
   independent_condition: false
 
 train:
+  batch_size: 4
   accumulate_grad_batches: 4
-  dataloader_workers: 10
+  dataloader_workers: 5
   save_interval: 250  # Global step
   sample_interval: 250 # Global step
   max_steps: -1
   gradient_checkpointing: true # (Turn off for faster training)
   save_path: "runs"
-  run_name: "pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_train[omini]_globalresume2K"
+  run_name: "pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.5]_loss[lpips_t0.5]_train[omini]_globalresume2K"
   # ID loss training options
   use_netarc: true # (Set to true when using ID loss with ArcFace resnet18, SimSwap ver)
-  netarc_path: '/mnt/data3/jiwon/fluxswap/checkpoints/arcface_checkpoint.tar'
+  netarc_path: '/home/work/.project/jiwon/fluxswap/checkpoints/arcface_checkpoint.tar'
   use_irse50: false # (Set to true when using ID loss with IRSE50)
-  id_loss_thres: 0.3 # ID loss threshold
+  id_loss_thres: 0.5 # ID loss threshold
   # LPIPS loss training options
-  train_lpips_loss: false
+  train_lpips_loss: true
   lpips_weight: 1.0
-  lpips_loss_thres: 0.3
+  lpips_loss_thres: 0.5
   # OminiControl training options
   train_omini: true
   # ID CA and Encoder training options
@@ -37,9 +38,8 @@ train:
   train_gaze_backbone_path: 
   train_gaze_loss_type : 'pred' # 'feature' for feature L2 loss, 'pred' for (yaw, pitch) prediction loss
 
-  lora_path : '/mnt/data3/jiwon/fluxswap/runs/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_train[omini]/ckpt/step8000_global2000/default.safetensors'
-  # lora_path : '/mnt/data3/jiwon/OminiControl/runs/faceswap_scratch_lora64_20251004-005548/ckpt/43000/default.safetensors'
-  # lora_path: '/mnt/data3/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_20251014-162532/ckpt/80000/default.safetensors'
+  lora_path : '/home/work/.project/jiwon/fluxswap/runs/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.5]_loss[lpips_t0.5]_train[omini]/ckpt/step8000_global2000/default.safetensors'
+  # lora_path: '/home/work/.project/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_20251014-162532/ckpt/80000/default.safetensors'
 
   # Specify the type of condition to use. 
   # Options: ["canny", "coloring", "deblurring", "depth", "depth_pred", "fill"]
@@ -47,7 +47,7 @@ train:
   dataset:
     # Dataset configuration
     name: 'vgg' # Options: ['vgg', 'ffhq']
-    dataset_path: "/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan" # Path to dataset
+    dataset_path: "/home/work/.project/jiwon/dataset/VGGface2_None_norm_512_true_bygfpgan" # Path to dataset
     pseudo: false # Whether to use synthetic pseudo dataset
     swapped_path: "/mnt/data6/vgg_swapped/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt80000_gs1.0_imgGS1.0_idGS1.0" # When using pseudo dataset, path to swapped images
     id_from: "masked" # Options: ["original", "masked"]

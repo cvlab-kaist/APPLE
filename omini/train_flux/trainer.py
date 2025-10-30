@@ -40,7 +40,7 @@ def get_config():
     return config
 
 
-def init_wandb(wandb_config, run_name):
+def init_wandb(wandb_config, run_name, config):
     import wandb
 
     try:
@@ -50,7 +50,7 @@ def init_wandb(wandb_config, run_name):
             name=run_name,
             id=os.environ.get("WANDB_RUN_ID", None),
             resume="allow",
-            config={},
+            config=config,
         )
     except Exception as e:
         print("Failed to initialize WanDB:", e)
@@ -721,12 +721,12 @@ class TrainingCallback(L.Callback):
             gradient_size /= count
 
         self.total_steps += 1
-        self.global_step = self.resume_global_step + pl_module.global_step # resume global step + 현재 global step
+        self.global_step = self.resume_global_step + pl_module.global_step # resume global step + 현재 global step로 기록함
 
         # Print training progress every n steps
         if self.use_wandb:
             report_dict = {
-                "steps": batch_idx,
+                "steps": self.total_steps,
                 "global_steps": self.global_step,
                 "epoch": trainer.current_epoch,
                 "gradient_size": gradient_size,
@@ -853,7 +853,7 @@ def train(dataset, trainable_model, config, test_function):
     # Initialize WanDB
     wandb_config = training_config.get("wandb", None)
     if wandb_config is not None and is_main_process:
-        init_wandb(wandb_config, run_name)
+        init_wandb(wandb_config, run_name, config)
 
     print("Rank:", rank)
     if is_main_process:
