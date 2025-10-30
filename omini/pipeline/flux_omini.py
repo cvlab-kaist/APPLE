@@ -1373,7 +1373,7 @@ def generate_ca_inv(
     if inverse and inverse_img is not None:
         target_size = (width, height) if height is not None and width is not None else None
         inverse_img_latents, inverse_latent_image_ids, height, width, ori_height, ori_width = encode_img(
-            self, inverse_img, prompt_embeds.dtype, target_size=target_size, device=device
+            self, inverse_img, prompt_embeds.dtype, target_size=target_size,
         )
 
     # Prepare latent variables
