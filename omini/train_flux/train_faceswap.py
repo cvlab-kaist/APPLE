@@ -19,6 +19,9 @@ from torchvision.transforms.functional import pil_to_tensor
 import torch.nn.functional as F
 import diffusers
 diffusers.utils.logging.set_verbosity_error()
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+
 
 '''
 id_embed_candidates_cache
@@ -136,6 +139,7 @@ class VGGDataset(torch.utils.data.Dataset):
         self,
         dataset_path='/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan',
         swapped_path= '/mnt/data6/vgg_swapped/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt80000_gs1.0_imgGS1.0_idGS1.0',
+        train_size = None,
         num_validation = 5,
         mode = 'train',
         condition_type = 'condition_blended_image_blurdownsample8_segGlass_landmark',
@@ -296,6 +300,8 @@ class VGGDataset(torch.utils.data.Dataset):
 
             self.swapped_trg_path = swapped_path
             swapped_trg_imgs = natsorted(glob(f"{self.swapped_trg_path}/*.png")) # .../ n006195_0211_01_n006500_0203_02.png -> {src_id}_{src_num}_{trg_id}_{trg_num}.png
+            if train_size is not None:
+                swapped_trg_imgs = swapped_trg_imgs[:train_size]
             print(f"[INFO] Found {len(swapped_trg_imgs)} swapped images in {self.swapped_trg_path}")
             
             # 파싱
@@ -694,6 +700,7 @@ def main():
     train_dataset = dataset_class(
         dataset_path=training_config["dataset"]["dataset_path"],
         mode='train',
+        train_size = training_config["dataset"].get("train_size", None),
         num_validation = training_config["dataset"].get("num_validation", 5),
         condition_type=training_config["dataset"].get("condition_type", 'condition_blended_image_blurdownsample8_segGlass_landmark'),
         gaze_type=training_config.get("gaze_type", 'unigaze'),
@@ -710,6 +717,7 @@ def main():
     test_dataset = dataset_class(
         dataset_path=training_config["dataset"]["dataset_path"],
         mode='test',
+        train_size = training_config["dataset"].get("train_size", None),
         num_validation = training_config["dataset"].get("num_validation", 5),
         condition_type= training_config["dataset"].get("condition_type", 'condition_blended_image_blurdownsample8_segGlass_landmark'),
         gaze_type=training_config.get("gaze_type", 'unigaze'),

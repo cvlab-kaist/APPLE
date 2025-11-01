@@ -22,6 +22,8 @@ from torchvision import transforms
 import torchvision.transforms as TF
 import torchvision.transforms.functional as TFF
 import numpy as np
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
 
 
 def get_rank():
