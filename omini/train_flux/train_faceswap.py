@@ -147,6 +147,7 @@ class VGGDataset(torch.utils.data.Dataset):
         id_embed_candidates_cache = None,
         get_random_id_embed_every_step = False,
         validation_with_other_src_id_embed = False,
+        aes_thres = 5.5,
     ):
         # 예시) /mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000002/0001_01.jpg
         # 예시) /mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000002/masked_pulid_id/0001_01.npy
@@ -180,11 +181,11 @@ class VGGDataset(torch.utils.data.Dataset):
 
             training_base_list = list(natsorted(os.listdir(dataset_path)))
             # training_base_list = list(natsorted(os.listdir(dataset_path)))[:-2000] # 마지막 2000개는 validation set으로 사용
-            high_aes_keys = [k for k, v in score_dict.items() if v['aes'] > 5.5]
+            high_aes_keys = [k for k, v in score_dict.items() if v['aes'] > aes_thres]
             img_list = [os.path.join(dataset_path, k + '.jpg') for k in high_aes_keys if k.split('/')[0] in training_base_list] 
             print(f"[DEBUG] Sample Image List : {img_list[:5]}")
             # img_list = natsorted(img_list)[:1000] # for debugging, limit to 1000 images
-            print(f"Filtered images based on AES score > 5.5: {len(img_list)} images remain.")
+            print(f"Filtered images based on AES score > {aes_thres}: {len(img_list)} images remain.")
 
             random.shuffle(img_list)
             if mode == 'train':
@@ -229,6 +230,7 @@ class VGGDataset(torch.utils.data.Dataset):
             for num, (dirname, basename) in enumerate(zip(dirname_list, basename_list)):
                 id = dirname # e.g. n000002
                 if mode == 'test' and self.validation_with_other_src_id_embed:
+                    # validation_with_other_src_id_embed -> Test 시에는 자기 자신 제외한 다른 인물에서 선택
                     print("[INFO] Validation with other src ID embed enabled. Validation by FaceSwap setting for 1st Stage.")
                     random.seed(num) # Seed for reproducibility
                     id = random.choice([d for d in natsorted(list(id_embed_candidates_cache.keys())) if d != id]) # test 시에는 자기 자신 제외한 다른 인물에서 선택
@@ -701,7 +703,8 @@ def main():
         swapped_condition_type=training_config["dataset"].get("swapped_condition_type", None),
         id_embed_candidates_cache=id_embed_candidates_cache if cache_vgg and dataset_type == "vgg" else None,
         get_random_id_embed_every_step=training_config["dataset"].get("get_random_id_embed_every_step", False),
-        validation_with_other_src_id_embed = training_config["dataset"].get("validation_with_other_src_id_embed", False)
+        validation_with_other_src_id_embed = training_config["dataset"].get("validation_with_other_src_id_embed", False),
+        aes_thres=training_config["dataset"].get("aes_thres", 5.5)
 
     )
     test_dataset = dataset_class(
@@ -716,7 +719,8 @@ def main():
         swapped_condition_type=training_config["dataset"].get("swapped_condition_type", None),
         id_embed_candidates_cache=id_embed_candidates_cache if cache_vgg and dataset_type == "vgg" else None,
         get_random_id_embed_every_step= False, # no need for testing
-        validation_with_other_src_id_embed = training_config["dataset"].get("validation_with_other_src_id_embed", False)
+        validation_with_other_src_id_embed = training_config["dataset"].get("validation_with_other_src_id_embed", False),
+        aes_thres=training_config["dataset"].get("aes_thres", 5.5)
     )
 
     # Initialize custom dataset
