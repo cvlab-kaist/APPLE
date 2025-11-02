@@ -1323,6 +1323,7 @@ def generate_ca_inv(
     inverse = False,
     inverse_steps = None,
     inverse_img: Optional[torch.FloatTensor] = None,
+    second_order: bool = False,
     **params: dict,
 ):
     self = pipeline
@@ -1589,7 +1590,56 @@ def generate_ca_inv(
             #     print(f"sigma_next: {sigma_next}, sigma_curr: {sigma_curr}")
             #     latents = latents + (sigma_next - sigma_curr) * noise_pred
             # latents = self.scheduler.step(noise_pred, t, latents)[0]
-            latents = latents + (sigma_next - sigma_curr) * noise_pred
+
+            if inverse and second_order:
+                mid_sample = latents + (sigma_next - sigma_curr) / 2 * noise_pred
+                mid_sample = mid_sample.to(latents_dtype)
+
+                sigma_mid = torch.full(
+                    (mid_sample.shape[0],),
+                    (sigma_curr + (sigma_next - sigma_curr) / 2),
+                    dtype=mid_sample.dtype,
+                    device=mid_sample.device,
+                )
+                timestep = sigma_mid.expand(latents.shape[0]).to(latents.dtype)
+
+                mid_noise_pred = transformer_forward_ca(
+                    self.transformer,
+                    image_features=[latents] + (c_latents if use_cond else []), # X, C_I ...
+                    text_features=[prompt_embeds], # C_T
+                    img_ids=[latent_image_ids] + (c_ids if use_cond else []),
+                    txt_ids=[text_ids],
+                    timesteps=[timestep, timestep] + (c_timesteps if use_cond else []),
+                    pooled_projections=[pooled_prompt_embeds] * 2
+                    + (c_projections if use_cond else []),
+                    guidances=[guidance] * 2 + (c_guidances if use_cond else []),
+                    return_dict=False,
+                    adapters=[main_adapter] * 2 + (c_adapters if use_cond else []),
+                    cache_mode=mode if kv_cache else None,
+                    cache_storage=kv_cond if kv_cache else None,
+                    to_cache=[False, False, *[True] * len(c_latents)], # (Text, Image, Condition ...)
+                    group_mask=group_mask,
+                    id_embed=id_embed.to(latents.device, latents.dtype) if id_embed is not None else None,
+                    id_weight=id_weight,
+                    gaze_embed=gaze_embed.to(latents.device, latents.dtype) if gaze_embed is not None else None,
+                    gaze_weight=gaze_weight,
+                    single_block_forward=single_block_forward,
+                    block_forward=block_forward,
+                    attn_forward=attn_forward,
+                    **transformer_kwargs,
+                )[0]
+
+
+                first_order = (mid_noise_pred - noise_pred) / ((sigma_next - sigma_curr) / 2)
+                latents = (
+                    latents
+                    + (sigma_next - sigma_curr) * noise_pred
+                    + 0.5 * (sigma_next - sigma_curr) ** 2 * first_order
+                )
+                latents = latents.to(latents_dtype)
+
+            else:
+                latents = latents + (sigma_next - sigma_curr) * noise_pred
 
             if latents.dtype != latents_dtype:
                 if torch.backends.mps.is_available():

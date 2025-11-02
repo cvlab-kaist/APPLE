@@ -33,6 +33,7 @@ def main(args):
     ckpt = args.ckpt
     base_path = args.base_path
     ffhq_base = args.ffhq_base_path
+    second_order = args.second_order
     if args.condition_type == 'blur_landmark':
         cond_dir = 'condition_blended_image_blurdownsample8_segGlass_landmark'
     elif args.condition_type == 'blur_landmark_iris':
@@ -83,6 +84,8 @@ def main(args):
 
     lora_file_path = f'{base_path}/runs/{run_name}/ckpt/{ckpt}/default.safetensors'
     output_dir = f'{base_path}/results/{run_name}_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval/inv_{inverse_cond}_{inverse_steps}'
+    if second_order:
+        output_dir += '_2ndTrue'
 
     adapter_name = 'default'
     if rank == 0:
@@ -215,6 +218,7 @@ def main(args):
                 inverse=True,
                 inverse_steps=inverse_steps,
                 inverse_img=trg_img,
+                second_order=second_order,
                 output_type='latent',
                 return_dict=False
                 )[0]
@@ -268,6 +272,7 @@ if __name__ == '__main__':
     parser.add_argument("--ffhq_base_path", type=str, default='/home/work/.project/jiwon/dataset/ffhq_eval', help="FFHQ eval dataset base path")
     parser.add_argument("--condition_type", type=str, default='blur_landmark', help="Condition type", choices=['blur_landmark', 'blur_landmark_iris'])
     parser.add_argument("--ckpt", type=str, required=True, help="Checkpoint step or name")
+    parser.add_argument("--second_order", action='store_true', help="Use second order inversion")
 
     args = parser.parse_args()
 
