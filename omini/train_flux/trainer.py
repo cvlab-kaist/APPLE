@@ -135,6 +135,7 @@ class OminiModel(L.LightningModule):
         if self.train_lpips_loss:
             self.lpips_loss_fn = lpips.LPIPS(net='vgg').to('cpu') # we will move to the correct device in to()
             print(f"[INFO] LPIPS loss training enabled. Weight: {self.lpips_weight}, Threshold: t <= {self.lpips_loss_thres}")
+            self.lpips_loss_fn.requires_grad_(False)
 
         # add pulid training
         self.train_pulid_enc = train_pulid_enc
