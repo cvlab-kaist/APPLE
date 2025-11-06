@@ -1,7 +1,7 @@
 import os
 os.environ['HF_HUB_DISABLE_XET'] = '1'
 os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 from transformer_flux_ca import FluxTransformer2DModelCA
 from diffusers import FluxTransformer2DModel, AutoencoderKL
 from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5TokenizerFast
@@ -9,6 +9,7 @@ from pipeline import FireFlowEditFluxPipeline, DNAEditFluxPipeline, RFInversionE
 import torch
 import diffusers
 diffusers.utils.logging.set_verbosity_error()
+import numpy as np
 
 
 guidance_scale=1.0
@@ -81,7 +82,8 @@ invertpipe = RFInversionEditFluxPipeline.from_pretrained(model_id,
 # output_dir = f'./results/pulid_omini_vgg_idLoss_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 
 ckpt = 80000
-lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_20251014-162532/ckpt/{ckpt}/default.safetensors'
+# lora_file_path = f'/mnt/data2/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_20251014-162532/ckpt/{ckpt}/default.safetensors'
+lora_file_path = "/mnt/data3/jiwon/OminiControl/runs/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_20251014-162532/ckpt/80000/default.safetensors"
 base_output_dir = f'./inversion_exp/faceswap_vgg_lora64Pretrained_idLoss_irse50_t<=0.5_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval'
 os.makedirs(base_output_dir, exist_ok=True)
 
@@ -110,7 +112,7 @@ from PIL import Image
 # output_dir = './results_pulid_omini/vgg_src/clsUncond_hiddenUncond'
 # os.makedirs(output_dir, exist_ok=True)
 
-src_img_path_list = sorted(glob('/mnt/data2/dataset/ffhq_eval/src/*.jpg'))[223:]
+src_img_path_list = sorted(glob('/mnt/data2/dataset/ffhq_eval/src/*.jpg'))
 trg_img_path_base = '/mnt/data2/dataset/ffhq_eval/trg'
 
 # for id_guidance_scale in [1.0]:
@@ -119,7 +121,7 @@ trg_img_path_base = '/mnt/data2/dataset/ffhq_eval/trg'
 # for id_guidance_scale in [1.0, 1.5, 2.0]:
 for id_guidance_scale in [1.0]:
     for src_img_path in tqdm(src_img_path_list, desc='Processing Image'):
-        for inverse_steps in [14]:
+        for inverse_steps in [28]:
             output_dir = os.path.join(base_output_dir, f"inv{inverse_steps}")
             os.makedirs(output_dir, exist_ok=True)
             
@@ -201,47 +203,47 @@ for id_guidance_scale in [1.0]:
 
             image_list = []
 
-            # 2. Random -> (Trg ID, Trg Cond)
-            # transformer.enable_adapters()
-            img = generate_ca_inv(
-                    flux,
-                    prompt=prompt,
-                    conditions=[condition],
-                    height=512,
-                    width=512,
-                    generator=torch.Generator('cpu').manual_seed(0),
-                    kv_cache=False,
-                    id_embed=trg_id_embeddings,
-                    uncond_id_embed=trg_uncond_id_embeddings,
-                    guidance_scale=guidance_scale,
-                    image_guidance_scale=image_guidance_scale,
-                    id_guidance_scale=id_guidance_scale,
-                    gaze_embed=gaze_embed,
-                )
-            image = img.images[0] if isinstance(img.images, list) else img.images
-            image.save(f"{output_dir}/{src_num}_random_trgID_trgCond.png")
-            image_list.append(image)
+            # # 2. Random -> (Trg ID, Trg Cond)
+            # # transformer.enable_adapters()
+            # img = generate_ca_inv(
+            #         flux,
+            #         prompt=prompt,
+            #         conditions=[condition],
+            #         height=512,
+            #         width=512,
+            #         generator=torch.Generator('cpu').manual_seed(0),
+            #         kv_cache=False,
+            #         id_embed=trg_id_embeddings,
+            #         uncond_id_embed=trg_uncond_id_embeddings,
+            #         guidance_scale=guidance_scale,
+            #         image_guidance_scale=image_guidance_scale,
+            #         id_guidance_scale=id_guidance_scale,
+            #         gaze_embed=gaze_embed,
+            #     )
+            # image = img.images[0] if isinstance(img.images, list) else img.images
+            # image.save(f"{output_dir}/{src_num}_random_trgID_trgCond.png")
+            # image_list.append(image)
 
-            # 3. Random Latents -> (Src ID, Trg Cond)
-            img = generate_ca_inv(
-                    flux,
-                    prompt=prompt,
-                    conditions=[condition],
-                    height=512,
-                    width=512,
-                    latents=None,
-                    generator=torch.Generator('cpu').manual_seed(0),
-                    kv_cache=False,
-                    id_embed=id_embeddings,
-                    uncond_id_embed=uncond_id_embeddings,
-                    guidance_scale=guidance_scale,
-                    image_guidance_scale=image_guidance_scale,
-                    id_guidance_scale=id_guidance_scale,
-                    gaze_embed=gaze_embed,
-                )
-            image = img.images[0] if isinstance(img.images, list) else img.images
-            image.save(f"{output_dir}/{src_num}_random_srcID_trgCond.png")
-            image_list.append(image)
+            # # 3. Random Latents -> (Src ID, Trg Cond)
+            # img = generate_ca_inv(
+            #         flux,
+            #         prompt=prompt,
+            #         conditions=[condition],
+            #         height=512,
+            #         width=512,
+            #         latents=None,
+            #         generator=torch.Generator('cpu').manual_seed(0),
+            #         kv_cache=False,
+            #         id_embed=id_embeddings,
+            #         uncond_id_embed=uncond_id_embeddings,
+            #         guidance_scale=guidance_scale,
+            #         image_guidance_scale=image_guidance_scale,
+            #         id_guidance_scale=id_guidance_scale,
+            #         gaze_embed=gaze_embed,
+            #     )
+            # image = img.images[0] if isinstance(img.images, list) else img.images
+            # image.save(f"{output_dir}/{src_num}_random_srcID_trgCond.png")
+            # image_list.append(image)
 
 
             for inverse_cond in ['trgID_trgCond', 'noID_trgCond', 'trgID_noCond', 'noID_noCond']:   
@@ -278,58 +280,60 @@ for id_guidance_scale in [1.0]:
                         )[0]
                 # inverted_latents = invertpipe.invert(source_img=trg_img, source_prompt=prompt, num_inference_steps=25, guidance_scale=guidance_scale, height=512, width=512)
                 print(f"inverted_latents shape: {inverted_latents.shape}")
+                # Save inverted latents npy
+                np.save(f"{cond_output_dir}/{src_num}_inverted_latents.npy", inverted_latents.detach().cpu().float().numpy())
 
 
 
 
                 
-                # 2. Inv -> (Trg ID, Trg Cond)
-                img = generate_ca_inv(
-                        flux,
-                        prompt=prompt,
-                        conditions=[condition],
-                        height=512,
-                        width=512,
-                        latents=inverted_latents,
-                        generator=torch.Generator('cpu').manual_seed(0),
-                        kv_cache=False,
-                        id_embed=trg_id_embeddings,
-                        uncond_id_embed=trg_uncond_id_embeddings,
-                        guidance_scale=guidance_scale,
-                        image_guidance_scale=image_guidance_scale,
-                        id_guidance_scale=id_guidance_scale,
-                        gaze_embed=gaze_embed,
-                        # Inversion
-                        inverse_steps=inverse_steps,
-                    )
-                image = img.images[0] if isinstance(img.images, list) else img.images
-                image.save(f"{cond_output_dir}/{src_num}_inv_trgID_trgCond.png")
-                cond_image_list.append(image)
+                # # 2. Inv -> (Trg ID, Trg Cond)
+                # img = generate_ca_inv(
+                #         flux,
+                #         prompt=prompt,
+                #         conditions=[condition],
+                #         height=512,
+                #         width=512,
+                #         latents=inverted_latents,
+                #         generator=torch.Generator('cpu').manual_seed(0),
+                #         kv_cache=False,
+                #         id_embed=trg_id_embeddings,
+                #         uncond_id_embed=trg_uncond_id_embeddings,
+                #         guidance_scale=guidance_scale,
+                #         image_guidance_scale=image_guidance_scale,
+                #         id_guidance_scale=id_guidance_scale,
+                #         gaze_embed=gaze_embed,
+                #         # Inversion
+                #         inverse_steps=inverse_steps,
+                #     )
+                # image = img.images[0] if isinstance(img.images, list) else img.images
+                # image.save(f"{cond_output_dir}/{src_num}_inv_trgID_trgCond.png")
+                # cond_image_list.append(image)
 
             
 
-                # 4. Inv -> (Src ID, Trg Cond)
-                img = generate_ca_inv(
-                        flux,
-                        prompt=prompt,
-                        conditions=[condition],
-                        height=512,
-                        width=512,
-                        latents=inverted_latents,
-                        generator=torch.Generator('cpu').manual_seed(0),
-                        kv_cache=False,
-                        id_embed=id_embeddings,
-                        uncond_id_embed=uncond_id_embeddings,
-                        guidance_scale=guidance_scale,
-                        image_guidance_scale=image_guidance_scale,
-                        id_guidance_scale=id_guidance_scale,
-                        gaze_embed=gaze_embed,
-                        # Inversion
-                        inverse_steps=inverse_steps,
-                    )
-                image = img.images[0] if isinstance(img.images, list) else img.images
-                image.save(f"{cond_output_dir}/{src_num}_inv_srcID_trgCond.png")
-                cond_image_list.append(image)
+                # # 4. Inv -> (Src ID, Trg Cond)
+                # img = generate_ca_inv(
+                #         flux,
+                #         prompt=prompt,
+                #         conditions=[condition],
+                #         height=512,
+                #         width=512,
+                #         latents=inverted_latents,
+                #         generator=torch.Generator('cpu').manual_seed(0),
+                #         kv_cache=False,
+                #         id_embed=id_embeddings,
+                #         uncond_id_embed=uncond_id_embeddings,
+                #         guidance_scale=guidance_scale,
+                #         image_guidance_scale=image_guidance_scale,
+                #         id_guidance_scale=id_guidance_scale,
+                #         gaze_embed=gaze_embed,
+                #         # Inversion
+                #         inverse_steps=inverse_steps,
+                #     )
+                # image = img.images[0] if isinstance(img.images, list) else img.images
+                # image.save(f"{cond_output_dir}/{src_num}_inv_srcID_trgCond.png")
+                # cond_image_list.append(image)
 
 
 

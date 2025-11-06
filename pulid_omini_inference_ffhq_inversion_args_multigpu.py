@@ -38,6 +38,8 @@ def main(args):
         cond_dir = 'condition_blended_image_blurdownsample8_segGlass_landmark'
     elif args.condition_type == 'blur_landmark_iris':
         cond_dir = 'condition_blended_image_blurdownsample8_segGlass_landmark_iris'
+    else:
+        cond_dir = ''
 
 
     if rank == 0:
@@ -136,7 +138,9 @@ def main(args):
         # trg_img.save(f"{output_dir}/{src_num}_trg.png")
 
 
-        cond_img_path = os.path.join (trg_img_path_base, cond_dir, f"{src_num}.png")
+        cond_img_path = os.path.join(trg_img_path_base, cond_dir, f"{src_num}.png")
+        if not os.path.exists(cond_img_path):
+            cond_img_path = os.path.join(trg_img_path_base, cond_dir, f"{src_num}.jpg")
         condition_img = Image.open(cond_img_path).convert('RGB')
         
         if use_gaze:
@@ -270,7 +274,7 @@ if __name__ == '__main__':
     parser.add_argument("--run_name", type=str, required=True, help="Run name for LoRA weights") # pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_loss[lpips_t0.3]_train[omini]_globalresume2K
     parser.add_argument("--base_path", type=str, default='{base_path}', help="Model name")
     parser.add_argument("--ffhq_base_path", type=str, default='/home/work/.project/jiwon/dataset/ffhq_eval', help="FFHQ eval dataset base path")
-    parser.add_argument("--condition_type", type=str, default='blur_landmark', help="Condition type", choices=['blur_landmark', 'blur_landmark_iris'])
+    parser.add_argument("--condition_type", type=str, default=None, help="Condition type", choices=['blur_landmark', 'blur_landmark_iris'])
     parser.add_argument("--ckpt", type=str, required=True, help="Checkpoint step or name")
     parser.add_argument("--second_order", action='store_true', help="Use second order inversion")
 
