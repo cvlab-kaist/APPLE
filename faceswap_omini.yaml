@@ -302,4 +302,5 @@ dependencies:
       - zope-deprecation==6.0
       - zope-interface==8.0.1
       - zope-sqlalchemy==4.0
+      - lpips==0.1.4
 prefix: /home/cvlab17/anaconda3/envs/faceswap_omini

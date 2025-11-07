@@ -214,9 +214,9 @@ def main(args):
                 kv_cache=False,
                 id_embed=trg_id_embeddings if 'trgID' in inverse_cond else None,
                 uncond_id_embed=trg_uncond_id_embeddings if 'trgID' in inverse_cond else None,
-                guidance_scale=guidance_scale,
-                image_guidance_scale=image_guidance_scale,
-                id_guidance_scale=id_guidance_scale,
+                guidance_scale=1.0,
+                image_guidance_scale=1.0,
+                id_guidance_scale=1.0,
                 gaze_embed=gaze_embed,
                 # Inversion
                 inverse=True,

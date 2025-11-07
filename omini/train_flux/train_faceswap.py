@@ -7,7 +7,7 @@ import numpy as np
 
 from PIL import Image, ImageDraw
 
-from datasets import load_dataset
+# from datasets import load_dataset
 
 from .trainer import OminiModel, get_config, train
 from ..pipeline.flux_omini import Condition, convert_to_condition, generate_ca
@@ -152,6 +152,8 @@ class VGGDataset(torch.utils.data.Dataset):
         get_random_id_embed_every_step = False,
         validation_with_other_src_id_embed = False,
         aes_thres = 5.5,
+        pseudo_aes_thres = None,
+        pseudo_pick_thres = None,
     ):
         # 예시) /mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000002/0001_01.jpg
         # 예시) /mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000002/masked_pulid_id/0001_01.npy
@@ -300,9 +302,34 @@ class VGGDataset(torch.utils.data.Dataset):
 
             self.swapped_trg_path = swapped_path
             swapped_trg_imgs = natsorted(glob(f"{self.swapped_trg_path}/*.png")) # .../ n006195_0211_01_n006500_0203_02.png -> {src_id}_{src_num}_{trg_id}_{trg_num}.png
+            
+            # 필터링 : AES 및 Pick 기준
+            if pseudo_aes_thres is not None or pseudo_pick_thres is not None:
+                if pseudo_aes_thres is None:
+                    aes_thres = -float('inf')
+                if pseudo_pick_thres is None:
+                    pick_thres = -float('inf')
+                import json
+                json_path = os.path.join(swapped_path, 'score.json')
+                with open(json_path, 'r') as f:
+                    score_dict = json.load(f)
+                filtered_swapped_trg_imgs = []
+                for trg_img_path in tqdm(swapped_trg_imgs, desc="Filtering swapped images based on AES and Pick scores"):
+                    filename = os.path.basename(trg_img_path).split('.')[0] # e.g. n006195_0211_01_n006500_0203_02
+                    if score_dict.get(filename) is None:
+                        print(f"[WARN] No score found for {filename}, skipping.")
+                        continue
+                    else :
+                        score_dict_entry = score_dict[filename]
+                        if score_dict_entry['aes'] > aes_thres and score_dict_entry['pick'] > pick_thres:
+                            filtered_swapped_trg_imgs.append(trg_img_path)
+                
+                print(f"[INFO] After filtering with AES > {aes_thres} and Pick > {pick_thres}, {len(filtered_swapped_trg_imgs)} swapped images remain.")
+                swapped_trg_imgs = filtered_swapped_trg_imgs
+            
             if train_size is not None:
                 swapped_trg_imgs = swapped_trg_imgs[:train_size]
-            print(f"[INFO] Found {len(swapped_trg_imgs)} swapped images in {self.swapped_trg_path}")
+            print(f"[INFO] Finally, found {len(swapped_trg_imgs)} swapped images in {self.swapped_trg_path}")
             
             # 파싱
             import re
@@ -326,6 +353,7 @@ class VGGDataset(torch.utils.data.Dataset):
             controlnet_list = []
             controlnet_ids = []
             controlnet_nums = []
+            
             if id_embed_candidates_cache is None:
                 id_embed_candidates_cache = {} # 캐시
                 for trg_id in tqdm(set(trg_ids)): # 캐싱
@@ -697,6 +725,7 @@ def main():
             torch.save(id_embed_candidates_cache, cache_vgg_path)
             print(f"[INFO] Cached VGG ID embed candidates saved to {cache_vgg_path}")
 
+    
     train_dataset = dataset_class(
         dataset_path=training_config["dataset"]["dataset_path"],
         mode='train',
@@ -711,7 +740,9 @@ def main():
         id_embed_candidates_cache=id_embed_candidates_cache if cache_vgg and dataset_type == "vgg" else None,
         get_random_id_embed_every_step=training_config["dataset"].get("get_random_id_embed_every_step", False),
         validation_with_other_src_id_embed = training_config["dataset"].get("validation_with_other_src_id_embed", False),
-        aes_thres=training_config["dataset"].get("aes_thres", 5.5)
+        aes_thres=training_config["dataset"].get("aes_thres", 5.5),
+        pseudo_aes_thres=training_config["dataset"].get("pseudo_aes_thres", None),
+        pseudo_pick_thres=training_config["dataset"].get("pseudo_pick_thres",  None)
 
     )
     test_dataset = dataset_class(
@@ -728,7 +759,9 @@ def main():
         id_embed_candidates_cache=id_embed_candidates_cache if cache_vgg and dataset_type == "vgg" else None,
         get_random_id_embed_every_step= False, # no need for testing
         validation_with_other_src_id_embed = training_config["dataset"].get("validation_with_other_src_id_embed", False),
-        aes_thres=training_config["dataset"].get("aes_thres", 5.5)
+        aes_thres=training_config["dataset"].get("aes_thres", 5.5),
+        pseudo_aes_thres=training_config["dataset"].get("pseudo_aes_thres", None),
+        pseudo_pick_thres=training_config["dataset"].get("pseudo_pick_thres",  None)
     )
 
     # Initialize custom dataset

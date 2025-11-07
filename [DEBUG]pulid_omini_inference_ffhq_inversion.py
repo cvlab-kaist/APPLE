@@ -7,6 +7,8 @@ from diffusers import FluxTransformer2DModel, AutoencoderKL
 from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5TokenizerFast
 from pipeline import FireFlowEditFluxPipeline, DNAEditFluxPipeline, RFInversionEditFluxPipeline
 import torch
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
 import diffusers
 diffusers.utils.logging.set_verbosity_error()
 
@@ -90,17 +92,17 @@ flux = FluxPipeline.from_pretrained(model_id,
 # lora_file_path = f'/mnt/data3/jiwon/fluxswap/runs/pretrained[ffhq43k]_dataset[vgg]_loss[maskid_netarc_t0.5]_train[omini]/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'./results/pretrained[ffhq43k]_dataset[vgg]_loss[maskid_netarc_t0.5]_train[omini]_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval/inv_{inverse_cond}_{inverse_steps}/'
 # os.makedirs(output_dir, exist_ok=True)
-<<<<<<< Updated upstream
 
 # ckpt = 'step32000_global8000'
 # lora_file_path = f'/home/work/.project/jiwon/fluxswap/runs/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_train[omini]_globalresume2K/ckpt/{ckpt}/default.safetensors'
 # output_dir = f'/home/work/.project/jiwon/fluxswap/results/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_train[omini]_globalresume2K_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval/inv_{inverse_cond}_{inverse_steps}'
 
-ckpt = 'step32000_global8000'
-lora_file_path = f'/home/work/.project/jiwon/fluxswap/runs/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_loss[lpips_t0.3]_train[omini]_globalresume2K/ckpt/{ckpt}/default.safetensors'
-output_dir = f'/home/work/.project/jiwon/fluxswap/results/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_loss[lpips_t0.3]_train[omini]_globalresume2K_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval/inv_{inverse_cond}_{inverse_steps}'
-=======
->>>>>>> Stashed changes
+# ckpt = 'step32000_global8000'
+# lora_file_path = f'/home/work/.project/jiwon/fluxswap/runs/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_loss[lpips_t0.3]_train[omini]_globalresume2K/ckpt/{ckpt}/default.safetensors'
+# output_dir = f'/home/work/.project/jiwon/fluxswap/results/pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_loss[lpips_t0.3]_train[omini]_globalresume2K_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval/inv_{inverse_cond}_{inverse_steps}'
+
+lora_file_path = f'/mnt/data3/jiwon/fluxswap/runs/baseline_dataset[vgg_aes5.1]_loss[maskid_netarc_t0.35]_loss[lpips_t0.35]_train[omini]/ckpt/step136000_global34000/default.safetensors'
+output_dir = f'./inversion_debug'
 
 adapter_name = 'default'
 print(f"Loading LoRA for adapter '{adapter_name}' from {lora_file_path}")
@@ -124,22 +126,31 @@ from PIL import Image
 # os.makedirs(output_dir, exist_ok=True)
 
 os.makedirs(output_dir, exist_ok=True)
-ffhq_base = '/home/work/.project/jiwon/dataset/ffhq_eval'
-src_img_path_list = sorted(glob(os.path.join(ffhq_base, 'src/*.jpg')))
-trg_img_path_base = os.path.join(ffhq_base, 'trg')
+# ffhq_base = '/home/work/.project/jiwon/dataset/ffhq_eval'
+# src_img_path_list = sorted(glob(os.path.join(ffhq_base, 'src/*.jpg')))
+# trg_img_path_base = os.path.join(ffhq_base, 'trg')
 
-for src_img_path in tqdm(src_img_path_list, desc='Processing Image'):
+src_img_path_list = [
+    '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000027/0425_01.jpg',
+]
+trg_img_path_list = [
+    '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n006781/0250_02.jpg',
+]
+
+for src_img_path, trg_img_path in tqdm(zip(src_img_path_list, trg_img_path_list), desc='Processing Image'):
     prompt="a photo of human face",
     neg_prompt = ""
     true_cfg = 1.0
     use_true_cfg = True if true_cfg > 1.0 else False
 
     src_num = os.path.basename(src_img_path).split('.')[0]
-    trg_img_path = os.path.join(trg_img_path_base, f"{src_num}.jpg")
+    # trg_img_path = os.path.join(trg_img_path_base, f"{src_num}.jpg")
+    trg_img_path_base = os.path.dirname(trg_img_path) # e.g. /mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n006781
     trg_img = Image.open(trg_img_path).convert('RGB').resize((512,512))
+    trg_num = os.path.basename(trg_img_path).split('.')[0]
     # trg_img.save(f"{output_dir}/{src_num}_trg.png")
 
-    cond_img_path = os.path.join (trg_img_path_base, 'condition_blended_image_blurdownsample8_segGlass_landmark', f"{src_num}.png")
+    cond_img_path = os.path.join (trg_img_path_base, 'condition_blended_image_blurdownsample8_segGlass_landmark_iris', f"{trg_num}.png")
     condition_img = Image.open(cond_img_path).convert('RGB')
     
     if use_gaze:
@@ -200,10 +211,10 @@ for src_img_path in tqdm(src_img_path_list, desc='Processing Image'):
     prompt = 'a photo of human face'
     negative_prompt = ''
 
-    img_save_fname = f"{output_dir}/{src_num}.png"
-    if os.path.exists(img_save_fname):
-        print(f"Image {img_save_fname} already exists. Skipping...")
-        continue
+    # img_save_fname = f"{output_dir}/{src_num}.png"
+    # if os.path.exists(img_save_fname):
+    #     print(f"Image {img_save_fname} already exists. Skipping...")
+    #     continue
 
     image_list = []
 
