@@ -381,7 +381,7 @@ class VGGDataset(torch.utils.data.Dataset):
             # GT target 
             trg_list = [os.path.join(dataset_path, trg_id, f"{trg_num}.jpg") for (trg_id, trg_num) in zip(controlnet_ids, controlnet_nums)]
 
-            uncond_id_embed_path = os.path.join(dataset_path, 'n000002/pulid_id/uncond.npy')
+            uncond_id_embed_path = os.path.join(dataset_path, 'n000002/masked_pulid_id/uncond.npy')
 
             # Final
             self.src_img_list = src_img_list # Source (ID embed용)

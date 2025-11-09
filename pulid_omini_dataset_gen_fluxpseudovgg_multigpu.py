@@ -25,12 +25,14 @@ image_guidance_scale = 1.0
 id_guidance_scale = 1.0
 use_gaze = False
 inverse_steps = 28
+num_inference_steps = 28
 inverse_cond = 'noID_trgCond' # ['trgID_trgCond', 'noID_trgCond', 'trgID_noCond', 'noID_noCond']
+use_uncond_id = True
 print(f"=== Inversion with condition: {inverse_cond} ===")
 
 # Specify LoRA path and output dir
-lora_file_path = f'/mnt/data3/jiwon/fluxswap/runs/baseline_dataset[vgg_aes5.1]_loss[maskid_netarc_t0.35]_loss[lpips_t0.35]_train[omini]/ckpt/step60000_global15000/default.safetensors'
-output_dir = f'/mnt/data4/jiwon/dataset/vggface2_aes5.1_pairs/flux_vgg15k'
+lora_file_path = f'/workspace/jiwon/fluxswap/runs/baseline_dataset[vgg_aes5.1]_loss[maskid_netarc_t0.35]_loss[lpips_t0.35]_train[omini]/ckpt/step199999_global50000/default.safetensors'
+output_dir = f'/workspace/jiwon/dataset/vggface2_aes5.1_pairs/flux_vgg50k_inv{inverse_steps}_infer{num_inference_steps}_uncondID{use_uncond_id}'
 os.makedirs(output_dir, exist_ok=True)
 
 
@@ -43,9 +45,10 @@ from natsort import natsorted
 import json
 random.seed(42)
 
-dataset_path = "/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan"
+dataset_path = "/workspace/jiwon/dataset/vgg_iris2"
 json_path = os.path.join(dataset_path, "score.json")
 path_pairs_path = os.path.join(output_dir, "pairs.pt")
+# os.remove(path_pairs_path) if os.path.exists(path_pairs_path) else None # DEBUG용
 
 if not os.path.exists(path_pairs_path):
     # 1) AES 필터링된 이미지 리스트 만들기
@@ -64,12 +67,12 @@ if not os.path.exists(path_pairs_path):
         full = os.path.join(dataset_path, rel)
         # 폴더가 실제로 존재하고 파일도 존재하는 경우만
         cond_path = os.path.join(dataset_path, os.path.dirname(rel), 'condition_blended_image_blurdownsample8_segGlass_landmark_iris', file_name + '.png')
-        masked_id_path = os.path.join(dataset_path, os.path.dirname(rel), 'masked_pulid_id', file_name + '.npy')
+        # masked_id_path = os.path.join(dataset_path, os.path.dirname(rel), 'masked_pulid_id', file_name + '.npy')
 
-        if os.path.exists(full) and os.path.exists(cond_path) and os.path.exists(masked_id_path) and rel.split("/")[0] in training_base_list:
+        if os.path.exists(full) and os.path.exists(cond_path) and rel.split("/")[0] in training_base_list:
             img_list.append(full)
 
-    print(f"AES>5.1 통과 및 MaskID/Condition 있는 이미지: {len(img_list)}")
+    print(f"AES>5.1 통과 및 Condition 있는 이미지: {len(img_list)}")
 
     # 2) {id: [imgs]} 생성 (id는 폴더명)
     id_to_images = defaultdict(list)
@@ -272,8 +275,8 @@ for src_img_path, trg_img_path in tqdm(zip(src_img_path_list, trg_img_path_list)
                 width=512,
                 generator=torch.Generator('cpu').manual_seed(0),
                 kv_cache=False,
-                id_embed=None,
-                uncond_id_embed=None,
+                id_embed=uncond_id_embeddings if use_uncond_id else None,
+                uncond_id_embed=uncond_id_embeddings if use_uncond_id else None,
                 guidance_scale=guidance_scale,
                 image_guidance_scale=image_guidance_scale,
                 id_guidance_scale=id_guidance_scale,
@@ -281,6 +284,7 @@ for src_img_path, trg_img_path in tqdm(zip(src_img_path_list, trg_img_path_list)
                 # Inversion
                 inverse=True,
                 inverse_steps=inverse_steps,
+                num_inference_steps=inverse_steps,
                 inverse_img=trg_img,
                 output_type='latent',
                 return_dict=False
@@ -304,6 +308,7 @@ for src_img_path, trg_img_path in tqdm(zip(src_img_path_list, trg_img_path_list)
                 gaze_embed=gaze_embed,
                 # Inversion
                 inverse_steps=inverse_steps,
+                num_inference_steps=num_inference_steps,
             )
         image = img.images[0] if isinstance(img.images, list) else img.images
         image.save(img_save_fname)
