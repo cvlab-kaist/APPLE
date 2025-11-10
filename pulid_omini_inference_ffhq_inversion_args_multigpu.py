@@ -85,7 +85,7 @@ def main(args):
 
 
     lora_file_path = f'{base_path}/runs/{run_name}/ckpt/{ckpt}/default.safetensors'
-    output_dir = f'{base_path}/results/{run_name}_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval/inv_{inverse_cond}_{inverse_steps}'
+    output_dir = f'{base_path}/results/{run_name}_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval/invFix_{inverse_cond}_{inverse_steps}'
     if second_order:
         output_dir += '_2ndTrue'
 
@@ -212,8 +212,8 @@ def main(args):
                 width=512,
                 generator=torch.Generator('cpu').manual_seed(0),
                 kv_cache=False,
-                id_embed=trg_id_embeddings if 'trgID' in inverse_cond else None,
-                uncond_id_embed=trg_uncond_id_embeddings if 'trgID' in inverse_cond else None,
+                id_embed=trg_id_embeddings if 'trgID' in inverse_cond else uncond_id_embeddings,
+                uncond_id_embed=trg_uncond_id_embeddings if 'trgID' in inverse_cond else uncond_id_embeddings,
                 guidance_scale=1.0,
                 image_guidance_scale=1.0,
                 id_guidance_scale=1.0,
