@@ -154,6 +154,8 @@ class VGGDataset(torch.utils.data.Dataset):
         aes_thres = 5.5,
         pseudo_aes_thres = None,
         pseudo_pick_thres = None,
+        do_proxy_recon_task = False,
+        do_proxy_recon_task_prob = 0.5,
     ):
         # 예시) /mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000002/0001_01.jpg
         # 예시) /mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000002/masked_pulid_id/0001_01.npy
@@ -165,6 +167,7 @@ class VGGDataset(torch.utils.data.Dataset):
         self.get_random_id_embed_every_step = get_random_id_embed_every_step
         self.validation_with_other_src_id_embed = validation_with_other_src_id_embed
         print(f"[INFO] VGGDataset {mode} set w/ get_random_id_embed_every_step: {self.get_random_id_embed_every_step}")
+        print(f"[INFO] do_proxy_recon_task: {do_proxy_recon_task}, do_proxy_recon_task_prob: {do_proxy_recon_task_prob}")
         print(f"[INFO] condition_type: {condition_type}")
 
         if id_from == 'original':
@@ -174,7 +177,8 @@ class VGGDataset(torch.utils.data.Dataset):
         else:
             raise ValueError(f"Invalid id_from value: {id_from}")
         self.id_dirname = id_dirname
-
+        self.do_proxy_recon_task = do_proxy_recon_task
+        self.do_proxy_recon_task_prob = do_proxy_recon_task_prob
         random.seed(0) # Seed for reproducibility
         if not pseudo:
             print("[INFO] 1st Stage Training: Using real dataset with for VGGDataset")
@@ -305,6 +309,7 @@ class VGGDataset(torch.utils.data.Dataset):
             
             # 필터링 : AES 및 Pick 기준
             if pseudo_aes_thres is not None or pseudo_pick_thres is not None:
+                print(f"[INFO] Filtering swapped images based on pseudo AES and Pick thresholds: AES > {pseudo_aes_thres}, Pick > {pseudo_pick_thres}")
                 if pseudo_aes_thres is None:
                     aes_thres = -float('inf')
                 if pseudo_pick_thres is None:
@@ -424,13 +429,20 @@ class VGGDataset(torch.utils.data.Dataset):
                 src_img_basename = os.path.basename(self.src_img_list[idx]).split('.')[0] # e.g. 0001_01
                 img = Image.open(self.image_paths[idx]).convert('RGB') # GT target
                 controlnet_img = Image.open(self.controlnet_paths[idx]).convert('RGB')
+                if self.do_proxy_recon_task:
+                    # 스테이지2에만 해당하는 옵션
+                    # 컨디션 이미지가 타겟 이미지와 동일하게 들어감 -> 리컨 태스크도 동일하게 수행
+                    if random.random() < self.do_proxy_recon_task_prob: # 정해진 확률로 수행
+                        controlnet_img = img.copy()
                 if self.get_random_id_embed_every_step:
                     # 동일한 ID 중에서 매번 랜덤 선택
                     id = self.id_embed_paths[idx].split('/')[-3] # e.g. n000002
                     id_candidates = self.id_embed_candidates_cache[id]
                     # 자기 자신밖에 없을수도 있으니, 제외 처리 안하고 랜덤 선택
-                    selected_id_embed = random.choice(id_candidates)
+                    selected_id_embed = random.choice(id_candidates) # e.g. .../n000002/masked_pulid_id/0001_01.npy
                     face_id_embed = torch.Tensor(np.load(selected_id_embed))
+                    # src_img도 변경
+                    src_img = Image.open(os.path.join(self.dataset_path, id, os.path.basename(selected_id_embed).replace('.npy', '.jpg'))).convert('RGB')
                 else:
                     face_id_embed = torch.Tensor(np.load(self.id_embed_paths[idx]))
                 gaze_embed = torch.Tensor(np.load(self.gaze_paths[idx])) if self.train_gaze else None
@@ -742,7 +754,9 @@ def main():
         validation_with_other_src_id_embed = training_config["dataset"].get("validation_with_other_src_id_embed", False),
         aes_thres=training_config["dataset"].get("aes_thres", 5.5),
         pseudo_aes_thres=training_config["dataset"].get("pseudo_aes_thres", None),
-        pseudo_pick_thres=training_config["dataset"].get("pseudo_pick_thres",  None)
+        pseudo_pick_thres=training_config["dataset"].get("pseudo_pick_thres",  None),
+        do_proxy_recon_task=training_config["dataset"].get("do_proxy_recon_task", False),
+        do_proxy_recon_task_prob=training_config["dataset"].get("do_proxy_recon_task_prob", 0.5),
 
     )
     test_dataset = dataset_class(
@@ -761,7 +775,9 @@ def main():
         validation_with_other_src_id_embed = training_config["dataset"].get("validation_with_other_src_id_embed", False),
         aes_thres=training_config["dataset"].get("aes_thres", 5.5),
         pseudo_aes_thres=training_config["dataset"].get("pseudo_aes_thres", None),
-        pseudo_pick_thres=training_config["dataset"].get("pseudo_pick_thres",  None)
+        pseudo_pick_thres=training_config["dataset"].get("pseudo_pick_thres",  None),
+        do_proxy_recon_task=training_config["dataset"].get("do_proxy_recon_task", False),
+        do_proxy_recon_task_prob=training_config["dataset"].get("do_proxy_recon_task_prob", 0.5),
     )
 
     # Initialize custom dataset
