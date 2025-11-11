@@ -166,6 +166,7 @@ class VGGDataset(torch.utils.data.Dataset):
         self.id_embed_candidates_cache = id_embed_candidates_cache
         self.get_random_id_embed_every_step = get_random_id_embed_every_step
         self.validation_with_other_src_id_embed = validation_with_other_src_id_embed
+        self.mode = mode
         print(f"[INFO] VGGDataset {mode} set w/ get_random_id_embed_every_step: {self.get_random_id_embed_every_step}")
         print(f"[INFO] do_proxy_recon_task: {do_proxy_recon_task}, do_proxy_recon_task_prob: {do_proxy_recon_task_prob}")
         print(f"[INFO] condition_type: {condition_type}")
