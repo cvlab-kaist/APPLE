@@ -429,7 +429,7 @@ class VGGDataset(torch.utils.data.Dataset):
                 src_img_basename = os.path.basename(self.src_img_list[idx]).split('.')[0] # e.g. 0001_01
                 img = Image.open(self.image_paths[idx]).convert('RGB') # GT target
                 controlnet_img = Image.open(self.controlnet_paths[idx]).convert('RGB')
-                if self.do_proxy_recon_task:
+                if self.do_proxy_recon_task and self.mode == 'train': # Training시에만 적용, Validation 시에는 적용 안함
                     # 스테이지2에만 해당하는 옵션
                     # 컨디션 이미지가 타겟 이미지와 동일하게 들어감 -> 리컨 태스크도 동일하게 수행
                     if random.random() < self.do_proxy_recon_task_prob: # 정해진 확률로 수행
