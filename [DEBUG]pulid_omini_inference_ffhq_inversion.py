@@ -1,14 +1,14 @@
 import os
 os.environ['HF_HUB_DISABLE_XET'] = '1'
 os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 from transformer_flux_ca import FluxTransformer2DModelCA
 from diffusers import FluxTransformer2DModel, AutoencoderKL
 from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5TokenizerFast
 from pipeline import FireFlowEditFluxPipeline, DNAEditFluxPipeline, RFInversionEditFluxPipeline
 import torch
-torch.backends.cuda.matmul.allow_tf32 = True
-torch.backends.cudnn.allow_tf32 = True
+# torch.backends.cuda.matmul.allow_tf32 = True
+# torch.backends.cudnn.allow_tf32 = True
 import diffusers
 diffusers.utils.logging.set_verbosity_error()
 
@@ -18,8 +18,10 @@ guidance_scale=1.0
 image_guidance_scale = 1.0
 id_guidance_scale = 1.0
 use_gaze = False
-inverse_steps = 28
+inverse_steps = 50
 inverse_cond = 'noID_trgCond' # ['trgID_trgCond', 'noID_trgCond', 'trgID_noCond', 'noID_noCond']
+inverse_2nd_order = False
+use_uncond_id = True
 print(f"=== Inversion with condition: {inverse_cond} ===")
 
 
@@ -131,142 +133,164 @@ os.makedirs(output_dir, exist_ok=True)
 # trg_img_path_base = os.path.join(ffhq_base, 'trg')
 
 src_img_path_list = [
-    '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000027/0425_01.jpg',
+    '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000071/0166_01.jpg',
+    '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000098/0228_01.jpg',
+    '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000198/0081_01.jpg',
 ]
 trg_img_path_list = [
-    '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n006781/0250_02.jpg',
+    '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n007678/0115_01.jpg',
+    '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n002261/0077_01.jpg',
+    '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n002116/0023_01.jpg',
 ]
 
-for src_img_path, trg_img_path in tqdm(zip(src_img_path_list, trg_img_path_list), desc='Processing Image'):
-    prompt="a photo of human face",
-    neg_prompt = ""
-    true_cfg = 1.0
-    use_true_cfg = True if true_cfg > 1.0 else False
 
-    src_num = os.path.basename(src_img_path).split('.')[0]
-    # trg_img_path = os.path.join(trg_img_path_base, f"{src_num}.jpg")
-    trg_img_path_base = os.path.dirname(trg_img_path) # e.g. /mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n006781
-    trg_img = Image.open(trg_img_path).convert('RGB').resize((512,512))
-    trg_num = os.path.basename(trg_img_path).split('.')[0]
-    # trg_img.save(f"{output_dir}/{src_num}_trg.png")
+for (inverse_steps, num_inference_steps) in [(28, 28), (50,50), (75, 75)]:
+    for src_img_path, trg_img_path in tqdm(zip(src_img_path_list, trg_img_path_list), desc='Processing Image'):
+        save_dir = os.path.join(output_dir, f"inv{inverse_steps}_inference{num_inference_steps}")
+        if inverse_2nd_order:
+            save_dir += '_2ndOrder'
+        if use_uncond_id:
+            save_dir += '_useUncondID'
+        os.makedirs(save_dir, exist_ok=True)
 
-    cond_img_path = os.path.join (trg_img_path_base, 'condition_blended_image_blurdownsample8_segGlass_landmark_iris', f"{trg_num}.png")
-    condition_img = Image.open(cond_img_path).convert('RGB')
-    
-    if use_gaze:
-        import numpy as np
-        gaze_path = os.path.join (trg_img_path_base, 'gaze', f"{src_num}.npy")
-        gaze_embed = torch.from_numpy(  np.load(gaze_path) ).unsqueeze(0).to(device, dtype=weight_dtype) # (1, gaze_dim)
-    else:
-        gaze_embed = None
-    
-    # Resize
-    condition_img = condition_img.resize((512,512))
-    condition_type = 'deblurring'
-    position_delta = [0,0]
-    position_scale = 1.0
-    condition = Condition(condition_img, 'default', position_delta, position_scale)
+        prompt="a photo of human face",
+        neg_prompt = ""
+        true_cfg = 1.0
+        use_true_cfg = True if true_cfg > 1.0 else False
 
-    # ID embed (Src)
-    id_image = cv2.imread(src_img_path)
-    print(f"id_image shape: {id_image.shape}")
-    id_image = cv2.cvtColor(id_image, cv2.COLOR_BGR2RGB)
-    id_image = resize_numpy_image_long(id_image, 1024)
-    id_image_pil = Image.fromarray(id_image)
-    id_image_pil = id_image_pil.resize((512,512))
-    # id_image_pil.save(f"{output_dir}/{src_num}_id.png")
+        src_num = os.path.basename(src_img_path).split('.')[0]
+        # trg_img_path = os.path.join(trg_img_path_base, f"{src_num}.jpg")
+        trg_img_path_base = os.path.dirname(trg_img_path) # e.g. /mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n006781
+        trg_img = Image.open(trg_img_path).convert('RGB').resize((512,512))
+        trg_num = os.path.basename(trg_img_path).split('.')[0]
+        # trg_img.save(f"{output_dir}/{src_num}_trg.png")
+        
+        save_fname = f"{save_dir}/{src_num}.png"
+        save_grid_fname = f"{save_dir}/{src_num}_grid.png"
+        if os.path.exists(save_fname) and os.path.exists(save_grid_fname):
+            print(f"Image {save_fname} and {save_grid_fname} already exist. Skipping...")
+            continue
 
-    id_embeddings, uncond_id_embeddings = flux.transformer.get_id_embedding(id_image, cal_uncond=True)
-    id_embeddings = id_embeddings.to(device, dtype=weight_dtype)
-    uncond_id_embeddings = uncond_id_embeddings.to(device, dtype=weight_dtype)
+        cond_img_path = os.path.join (trg_img_path_base, 'condition_blended_image_blurdownsample8_segGlass_landmark_iris', f"{trg_num}.png")
+        condition_img = Image.open(cond_img_path).convert('RGB')
+        
+        if use_gaze:
+            import numpy as np
+            gaze_path = os.path.join (trg_img_path_base, 'gaze', f"{src_num}.npy")
+            gaze_embed = torch.from_numpy(  np.load(gaze_path) ).unsqueeze(0).to(device, dtype=weight_dtype) # (1, gaze_dim)
+        else:
+            gaze_embed = None
+        
+        # Resize
+        condition_img = condition_img.resize((512,512))
+        condition_type = 'deblurring'
+        position_delta = [0,0]
+        position_scale = 1.0
+        condition = Condition(condition_img, 'default', position_delta, position_scale)
 
+        # ID embed (Src)
+        id_image = cv2.imread(src_img_path)
+        print(f"id_image shape: {id_image.shape}")
+        id_image = cv2.cvtColor(id_image, cv2.COLOR_BGR2RGB)
+        id_image = resize_numpy_image_long(id_image, 1024)
+        id_image_pil = Image.fromarray(id_image)
+        id_image_pil = id_image_pil.resize((512,512))
+        # id_image_pil.save(f"{output_dir}/{src_num}_id.png")
 
-    # ID embed (Trg)
-    id_image_trg = cv2.imread(trg_img_path)
-    print(f"id_image_trg shape: {id_image_trg.shape}")
-    id_image_trg = cv2.cvtColor(id_image_trg, cv2.COLOR_BGR2RGB)
-    id_image_trg = resize_numpy_image_long(id_image_trg, 1024)
-    id_image_trg_pil = Image.fromarray(id_image_trg)
-    id_image_trg_pil = id_image_trg_pil.resize((512,512))
-    # id_image_trg_pil.save(f"{output_dir}/{src_num}_id_trg.png")   
-    trg_id_embeddings, trg_uncond_id_embeddings = flux.transformer.get_id_embedding(id_image_trg, cal_uncond=True)
-    trg_id_embeddings = trg_id_embeddings.to(device, dtype=weight_dtype)
-    trg_uncond_id_embeddings = trg_uncond_id_embeddings.to(device, dtype=weight_dtype)
-
-    # Nan check
-    if torch.isnan(id_embeddings).any():
-        raise RuntimeError('id embedding is nan')
-
-    # inp = prepare_txt(t5=flux.t5, clip=flux.clip, prompt=prompt, device=device)
-    # inp_neg = prepare_txt(t5=flux.t5, clip=flux.clip,  prompt=neg_prompt, device=device) if use_true_cfg else None
-    # flux.t5, flux.clip = flux.t5.cpu(), flux.clip.cpu()
-
-    from diffusers.utils import make_image_grid
-    # generate image
-    # prompt = "a photo of human face"
-    # negative_prompt = ""
-
-    # prompt = "photo of a woman in red dress in a garden"
-    # negative_prompt = "monochrome, lowres, bad anatomy, worst quality, low quality, blurry"
-    prompt = 'a photo of human face'
-    negative_prompt = ''
-
-    # img_save_fname = f"{output_dir}/{src_num}.png"
-    # if os.path.exists(img_save_fname):
-    #     print(f"Image {img_save_fname} already exists. Skipping...")
-    #     continue
-
-    image_list = []
-
-    # 1. Inv 
-    inverted_latents = generate_ca_inv(
-            flux,
-            prompt=prompt,
-            conditions=[condition] if 'trgCond' in inverse_cond else [],
-            height=512,
-            width=512,
-            generator=torch.Generator('cpu').manual_seed(0),
-            kv_cache=False,
-            id_embed=trg_id_embeddings if 'trgID' in inverse_cond else None,
-            uncond_id_embed=trg_uncond_id_embeddings if 'trgID' in inverse_cond else None,
-            guidance_scale=guidance_scale,
-            image_guidance_scale=image_guidance_scale,
-            id_guidance_scale=id_guidance_scale,
-            gaze_embed=gaze_embed,
-            # Inversion
-            inverse=True,
-            inverse_steps=inverse_steps,
-            inverse_img=trg_img,
-            output_type='latent',
-            return_dict=False
-            )[0]
-
-    # 4. Inv -> (Src ID, Trg Cond)
-    img = generate_ca_inv(
-            flux,
-            prompt=prompt,
-            conditions=[condition],
-            height=512,
-            width=512,
-            latents=inverted_latents,
-            generator=torch.Generator('cpu').manual_seed(0),
-            kv_cache=False,
-            id_embed=id_embeddings,
-            uncond_id_embed=uncond_id_embeddings,
-            guidance_scale=guidance_scale,
-            image_guidance_scale=image_guidance_scale,
-            id_guidance_scale=id_guidance_scale,
-            gaze_embed=gaze_embed,
-            # Inversion
-            inverse_steps=inverse_steps,
-        )
-    image = img.images[0] if isinstance(img.images, list) else img.images
-    image.save(f"{output_dir}/{src_num}.png")
-    image_list.append(image)
+        id_embeddings, uncond_id_embeddings = flux.transformer.get_id_embedding(id_image, cal_uncond=True)
+        id_embeddings = id_embeddings.to(device, dtype=weight_dtype)
+        uncond_id_embeddings = uncond_id_embeddings.to(device, dtype=weight_dtype)
 
 
+        # ID embed (Trg)
+        id_image_trg = cv2.imread(trg_img_path)
+        print(f"id_image_trg shape: {id_image_trg.shape}")
+        id_image_trg = cv2.cvtColor(id_image_trg, cv2.COLOR_BGR2RGB)
+        id_image_trg = resize_numpy_image_long(id_image_trg, 1024)
+        id_image_trg_pil = Image.fromarray(id_image_trg)
+        id_image_trg_pil = id_image_trg_pil.resize((512,512))
+        # id_image_trg_pil.save(f"{output_dir}/{src_num}_id_trg.png")   
+        trg_id_embeddings, trg_uncond_id_embeddings = flux.transformer.get_id_embedding(id_image_trg, cal_uncond=True)
+        trg_id_embeddings = trg_id_embeddings.to(device, dtype=weight_dtype)
+        trg_uncond_id_embeddings = trg_uncond_id_embeddings.to(device, dtype=weight_dtype)
 
-    grid = make_image_grid([id_image_pil, trg_img, condition_img] + image_list, rows=1, cols=3 + len(image_list))
-    os.makedirs(f"{output_dir}/grid", exist_ok=True)
-    grid.save(f"{output_dir}/grid/{src_num}_grid.png")
+        # Nan check
+        if torch.isnan(id_embeddings).any():
+            raise RuntimeError('id embedding is nan')
+
+        # inp = prepare_txt(t5=flux.t5, clip=flux.clip, prompt=prompt, device=device)
+        # inp_neg = prepare_txt(t5=flux.t5, clip=flux.clip,  prompt=neg_prompt, device=device) if use_true_cfg else None
+        # flux.t5, flux.clip = flux.t5.cpu(), flux.clip.cpu()
+
+        from diffusers.utils import make_image_grid
+        # generate image
+        # prompt = "a photo of human face"
+        # negative_prompt = ""
+
+        # prompt = "photo of a woman in red dress in a garden"
+        # negative_prompt = "monochrome, lowres, bad anatomy, worst quality, low quality, blurry"
+        prompt = 'a photo of human face'
+        negative_prompt = ''
+
+        # img_save_fname = f"{output_dir}/{src_num}.png"
+        # if os.path.exists(img_save_fname):
+        #     print(f"Image {img_save_fname} already exists. Skipping...")
+        #     continue
+
+        image_list = []
+
+        # 1. Inv 
+        inverted_latents = generate_ca_inv(
+                flux,
+                prompt=prompt,
+                conditions=[condition] if 'trgCond' in inverse_cond else [],
+                height=512,
+                width=512,
+                generator=torch.Generator('cpu').manual_seed(0),
+                kv_cache=False,
+                id_embed=uncond_id_embeddings if use_uncond_id else None,
+                uncond_id_embed=uncond_id_embeddings if use_uncond_id else None,
+                guidance_scale=guidance_scale,
+                image_guidance_scale=image_guidance_scale,
+                id_guidance_scale=id_guidance_scale,
+                gaze_embed=gaze_embed,
+                # Inversion
+                num_inference_steps=inverse_steps,
+                inverse=True,
+                inverse_steps=inverse_steps,
+                inverse_img=trg_img,
+                second_order=inverse_2nd_order,
+                output_type='latent',
+                return_dict=False
+                )[0]
+
+        # 4. Inv -> (Src ID, Trg Cond)
+        img = generate_ca_inv(
+                flux,
+                prompt=prompt,
+                conditions=[condition],
+                height=512,
+                width=512,
+                latents=inverted_latents,
+                generator=torch.Generator('cpu').manual_seed(0),
+                kv_cache=False,
+                id_embed=id_embeddings,
+                uncond_id_embed=uncond_id_embeddings,
+                guidance_scale=guidance_scale,
+                image_guidance_scale=image_guidance_scale,
+                id_guidance_scale=id_guidance_scale,
+                gaze_embed=gaze_embed,
+                # Inversion
+                num_inference_steps=num_inference_steps,
+                inverse_steps=num_inference_steps,
+            )
+        image = img.images[0] if isinstance(img.images, list) else img.images
+        image.save(f"{save_dir}/{src_num}.png")
+        image_list.append(image)
+
+
+
+        grid = make_image_grid([id_image_pil, trg_img, condition_img] + image_list, rows=1, cols=3 + len(image_list))
+        os.makedirs(f"{save_dir}/grid", exist_ok=True)
+        grid.save(f"{save_dir}/grid/{src_num}_grid.png")
 

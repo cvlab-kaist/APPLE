@@ -19,6 +19,7 @@ def main(args):
     rank = dist.get_rank()
     world_size = dist.get_world_size()
     device = f'cuda:{rank}'
+    print(f"[INFO] Rank {rank}/{world_size} using device {device}")
     torch.cuda.set_device(rank)
 
 

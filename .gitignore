@@ -13,3 +13,5 @@ other_models/
 *.sh
 *.yaml
 antelopev2
+ablation/
+reface_dataset/
