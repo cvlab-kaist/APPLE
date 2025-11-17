@@ -22,8 +22,6 @@ from torchvision import transforms
 import torchvision.transforms as TF
 import torchvision.transforms.functional as TFF
 import numpy as np
-torch.backends.cuda.matmul.allow_tf32 = True
-torch.backends.cudnn.allow_tf32 = True
 
 
 def get_rank():
@@ -85,6 +83,7 @@ class OminiModel(L.LightningModule):
         train_lpips_loss: bool = False,
         lpips_weight: float = 1.0,
         lpips_loss_thres: float = 0.5,
+        use_target_clip: bool = False,
     ):
         # Initialize the LightningModule
         super().__init__()
@@ -93,10 +92,14 @@ class OminiModel(L.LightningModule):
 
         self.last_save_global_step = None
         self.last_sample_global_step = None
-
+        
+        
+        # self.dtype = dtype
+        self.use_target_clip = use_target_clip
 
         # Load the Flux pipeline
-        self.transformer: FluxTransformer2DModelCA = FluxTransformer2DModelCA.from_pretrained(flux_pipe_id, torch_dtype=dtype, subfolder='transformer', low_cpu_mem_usage=False, device_map=None, use_netarc=use_netarc, netarc_path=netarc_path, use_irse50=use_irse50, use_gaze=train_gaze, gaze_conditioning_type=train_gaze_type ,gaze_type=gaze_type, local_rank=get_rank())
+        print(f"[INFO] Local RANK : {get_rank()}")
+        self.transformer: FluxTransformer2DModelCA = FluxTransformer2DModelCA.from_pretrained(flux_pipe_id, torch_dtype=dtype, subfolder='transformer', low_cpu_mem_usage=False, device_map=None, use_netarc=use_netarc, netarc_path=netarc_path, use_irse50=use_irse50, use_gaze=train_gaze, gaze_conditioning_type=train_gaze_type ,gaze_type=gaze_type, local_rank=get_rank(), use_target_clip=use_target_clip, onnx_provider='cpu')
         # self.transformer#.to(device)
 
         self.flux_pipe: FluxPipeline = FluxPipeline.from_pretrained(
@@ -402,6 +405,56 @@ class OminiModel(L.LightningModule):
         # print(f"gaze_embed : {gaze_embed.shape if gaze_embed is not None else None}")
         if self.train_gaze :
             assert gaze_embed is not None, "[ERROR] Gaze embed is required for gaze training."
+            
+            
+        if self.use_target_clip:
+            from torchvision.transforms.functional import normalize, resize
+            from torchvision.transforms import InterpolationMode
+            
+            with torch.no_grad():
+                id_embed = batch['id_embed']
+                src_img = batch['src_img'] # [0, 1]
+                
+                src_img_resized = resize(src_img, self.transformer.clip_vision_model.image_size, InterpolationMode.BICUBIC)
+                src_face_features_image = normalize(src_img_resized, self.transformer.eva_transform_mean, self.transformer.eva_transform_std)
+                id_cond_vit, id_vit_hidden = self.transformer.clip_vision_model(
+                    src_face_features_image.to(self.flux_pipe.dtype).to(self.flux_pipe.device), return_all_features=False, return_hidden=True, shuffle=False
+                )
+                # Uncond id_embed 인 경우
+                if id_embed.sum() == 0 :
+                    id_cond_vit = torch.zeros_like(id_cond_vit).to(self.flux_pipe.dtype).to(self.flux_pipe.device)
+                    id_vit_hidden_uncond = []
+                    for layer_idx in range(0, len(id_vit_hidden)):
+                        id_vit_hidden_uncond.append(torch.zeros_like(id_vit_hidden[layer_idx]).to(self.flux_pipe.dtype).to(self.flux_pipe.device)) # zero hidden for uncond
+                    id_vit_hidden = id_vit_hidden_uncond
+                
+                trg_img = batch["image"] # [0, 1]
+                trg_image_resized = resize(trg_img, self.transformer.clip_vision_model.image_size, InterpolationMode.BICUBIC)
+                trg_face_features_image = normalize(trg_image_resized, self.transformer.eva_transform_mean, self.transformer.eva_transform_std)
+                trg_id_cond_vit, _ = self.transformer.clip_vision_model(
+                    trg_face_features_image.to(self.flux_pipe.dtype).to(self.flux_pipe.device), return_all_features=False, return_hidden=True, shuffle=False
+                )
+            id_cond = torch.cat([id_embed, id_cond_vit], dim=-1).to(self.flux_pipe.dtype).to(self.flux_pipe.device)
+            # Check NaN before PULID encoder
+            if torch.isnan(id_cond).any():
+                print("[ERROR] NaN detected in id_cond before PULID encoder")
+                raise ValueError("NaN detected in id_cond before PULID encoder")
+            items = id_vit_hidden if isinstance(id_vit_hidden, (list, tuple)) else [id_vit_hidden]
+            for i, t in enumerate(items):
+                if torch.isnan(t).any():
+                    print(f"[ERROR] NaN detected in id_vit_hidden[{i}] before PULID encoder")
+                    raise ValueError(f"NaN detected in id_vit_hidden[{i}] before PULID encoder")
+            if torch.isnan(trg_id_cond_vit).any():
+                print("[ERROR] NaN detected in trg_id_cond_vit before PULID encoder")
+                raise ValueError("NaN detected in trg_id_cond_vit before PULID encoder")
+            # id_embed = self.transformer.pulid_encoder(id_cond, id_vit_hidden, None)
+            id_embed = self.transformer.pulid_encoder(id_cond, id_vit_hidden, trg_id_cond_vit)
+            
+            # Check NaN
+            if torch.isnan(id_embed).any():
+                print("[ERROR] NaN detected in id_embed")
+                raise ValueError("NaN detected in id_embed")
+            
 
         # Get the conditions and position deltas from the batch
         conditions, position_deltas, position_scales, latent_masks = [], [], [], []
@@ -869,6 +922,7 @@ def train(dataset, trainable_model, config, test_function):
         batch_size=training_config.get("batch_size", 1),
         shuffle=True,
         num_workers=training_config["dataloader_workers"],
+        persistent_workers=True,
     )
 
     # Callbacks for testing and saving checkpoints

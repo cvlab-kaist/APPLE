@@ -99,7 +99,7 @@ def img2tensor(imgs, bgr2rgb=True, float32=True):
             if img.dtype == 'float64':
                 img = img.astype('float32')
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = torch.from_numpy(img.transpose(2, 0, 1))
+        img = torch.from_numpy(img.transpose(2, 0, 1)) # HWC to CHW
         if float32:
             img = img.float()
         return img

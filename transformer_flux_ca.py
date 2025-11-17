@@ -598,6 +598,8 @@ class FluxTransformer2DModelCA(
         use_gaze: bool = False, # For gaze conditioning
         gaze_type: str = 'unigaze', # 'gaze' for GazeTR or 'unigaze'
         gaze_conditioning_type: str = 'CA', # 'CA' or 'temb'
+        # Target CLIP conditioning
+        use_target_clip: bool = False, # For target CLIP conditioning
     ):
         super().__init__(
             patch_size=patch_size,
@@ -621,6 +623,9 @@ class FluxTransformer2DModelCA(
             raise ValueError(f'Unknown gaze type: {gaze_type}')
         if use_gaze:
             print(f'[INFO] Gaze type: {gaze_type}, Gaze embedding dim: {gaze_embed_dim}, Conditioning type: {gaze_conditioning_type}')
+            
+        if use_target_clip:
+            print('[INFO] Using Target CLIP Conditioning')
 
         double_interval = 2
         single_interval = 4
@@ -629,6 +634,8 @@ class FluxTransformer2DModelCA(
         self.use_netarc = use_netarc
         self.use_irse50 = use_irse50
         self.use_gaze = use_gaze
+        self.use_target_clip = use_target_clip
+        self.onnx_provider = onnx_provider
 
         # init ID loss model
         self.netarc = None
@@ -646,7 +653,19 @@ class FluxTransformer2DModelCA(
             print('[INFO] Using IRSE50 model for ID loss')
 
         # init encoder
-        self.pulid_encoder = IDFormer().to(self.device, self.dtype)
+        self.pulid_encoder = IDFormer(use_target_clip=self.use_target_clip).to(self.device, self.dtype)
+        # initialize pulid encoder weights
+        for name, param in self.pulid_encoder.named_parameters():
+            if 'bias' in name:
+                nn.init.zeros_(param)
+
+            elif 'weight' in name and param.dim() == 1:
+                # LayerNorm, BatchNorm 등
+                nn.init.ones_(param)
+
+            elif param.dim() > 1:
+                # Linear / Conv weights
+                nn.init.xavier_normal_(param, gain=1e-4)
 
         num_ca = 19 // double_interval + 38 // single_interval
         if 19 % double_interval != 0:
@@ -683,10 +702,10 @@ class FluxTransformer2DModelCA(
             crop_ratio=(1, 1),
             det_model='retinaface_resnet50',
             save_ext='png',
-            device=self.device,
+            device=self.onnx_provider,
         )
         self.face_helper.face_parse = None
-        self.face_helper.face_parse = init_parsing_model(model_name='bisenet', device=self.device)
+        self.face_helper.face_parse = init_parsing_model(model_name='bisenet', device=self.onnx_provider)
         # clip-vit backbone
         model, _, _ = create_model_and_transforms('EVA02-CLIP-L-14-336', 'eva_clip', force_custom_clip=True)
         model = model.visual
@@ -705,10 +724,10 @@ class FluxTransformer2DModelCA(
         providers = ['CPUExecutionProvider'] if onnx_provider == 'cpu' \
             else [('CUDAExecutionProvider', {'device_id': local_rank})]
         self.app = FaceAnalysis(name='antelopev2', root='.', providers=providers)
-        self.app.prepare(ctx_id=0, det_size=(640, 640))
+        self.app.prepare(ctx_id=local_rank, det_size=(640, 640))
         self.handler_ante = insightface.model_zoo.get_model('./antelopev2/glintr100.onnx',
                                                             providers=providers)
-        self.handler_ante.prepare(ctx_id=0)
+        self.handler_ante.prepare(ctx_id=local_rank)
 
         gc.collect()
         torch.cuda.empty_cache()
@@ -990,10 +1009,10 @@ class FluxTransformer2DModelCA(
             crop_ratio=(1, 1),
             det_model='retinaface_resnet50',
             save_ext='png',
-            device=self.device,
+            device=self.onnx_provider,
         )
         self.face_helper.face_parse = None
-        self.face_helper.face_parse = init_parsing_model(model_name='bisenet', device=device)
+        self.face_helper.face_parse = init_parsing_model(model_name='bisenet', device=self.onnx_provider)
 
 
         self.clip_vision_model = self.clip_vision_model.to(device, dtype)
@@ -1034,7 +1053,7 @@ class FluxTransformer2DModelCA(
 
         for module in state_dict_dict:
             print(f'loading from {module}')
-            getattr(self, module).load_state_dict(state_dict_dict[module], strict=True)
+            getattr(self, module).load_state_dict(state_dict_dict[module], strict=False)
 
         del state_dict
         del state_dict_dict
@@ -1045,12 +1064,12 @@ class FluxTransformer2DModelCA(
         return x
 
     @torch.no_grad()
-    def get_id_embedding(self, image, cal_uncond=False):
+    def get_id_embedding(self, image, cal_uncond=False, trg_image=None):
         """
         Args:
             image: numpy rgb image, range [0, 255]
+            trg_image: numpy rgb image, range [0, 255]
         """
-
         self.face_helper.clean_all()
         self.debug_img_list = []
         image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
@@ -1125,9 +1144,27 @@ class FluxTransformer2DModelCA(
         if torch.isnan(id_cond_vit).any():
             raise RuntimeError('id_cond_vit after norm is nan')
 
+        # id_ante_embedding : torch.Size([1, 512])
+        # id_cond_vit : torch.Size([1, 768])
+        # id_cond : torch.Size([1, 1280])
         id_cond = torch.cat([id_ante_embedding, id_cond_vit], dim=-1)
 
-        id_embedding = self.pulid_encoder(id_cond, id_vit_hidden)
+        # (Pdb) [ x.shape for x in id_vit_hidden]
+        # [torch.Size([1, 577, 1024]), torch.Size([1, 577, 1024]), torch.Size([1, 577, 1024]), torch.Size([1, 577, 1024]), torch.Size([1, 577, 1024])]
+        if self.use_target_clip and trg_image is not None:
+            # Do not detect / align, directly send to clip-vit
+            print('[INFO] transformer.get_id_embedding : using target clip image for target id embedding')
+            trg_image_bgr = cv2.cvtColor(trg_image, cv2.COLOR_RGB2BGR)
+            input = img2tensor(trg_image_bgr, bgr2rgb=True).unsqueeze(0) / 255.0
+            input = input.to(self.device)
+            trg_image_resized = resize(input, self.clip_vision_model.image_size, InterpolationMode.BICUBIC)
+            trg_face_features_image = normalize(trg_image_resized, self.eva_transform_mean, self.eva_transform_std)
+            trg_id_cond_vit, trg_id_vit_hidden = self.clip_vision_model(
+                trg_face_features_image.to(self.dtype), return_all_features=False, return_hidden=True, shuffle=False
+            )
+            id_embedding = self.pulid_encoder(id_cond, id_vit_hidden, trg_id_cond_vit)
+        else:
+            id_embedding = self.pulid_encoder(id_cond, id_vit_hidden)
         if torch.isnan(id_embedding).any():
             raise RuntimeError('id_embedding is nan')
 
@@ -1143,6 +1180,126 @@ class FluxTransformer2DModelCA(
             raise RuntimeError('uncond_id_embedding is nan')
 
         return id_embedding, uncond_id_embedding
+    
+    @torch.no_grad()
+    def get_id_embedding_(self, image, cal_uncond=False, trg_image=None):
+        """
+        Args:
+            image: numpy rgb image, range [0, 255]
+            trg_image: numpy rgb image, range [0, 255]
+        """
+        self.face_helper.clean_all()
+        self.debug_img_list = []
+        image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        # get antelopev2 embedding
+        face_info = self.app.get(image_bgr)
+        if len(face_info) > 0:
+            face_info = sorted(face_info, key=lambda x: (x['bbox'][2] - x['bbox'][0]) * (x['bbox'][3] - x['bbox'][1]))[
+                -1
+            ]  # only use the maximum face
+            id_ante_embedding = face_info['embedding']
+            self.debug_img_list.append(
+                image[
+                    int(face_info['bbox'][1]) : int(face_info['bbox'][3]),
+                    int(face_info['bbox'][0]) : int(face_info['bbox'][2]),
+                ]
+            )
+        else:
+            id_ante_embedding = None
+
+        # NaN check
+        if id_ante_embedding is not None:
+            if np.isnan(id_ante_embedding).any():
+                raise RuntimeError('antelopev2 embedding is nan')
+
+        # using facexlib to detect and align face
+        self.face_helper.read_image(image_bgr)
+        self.face_helper.get_face_landmarks_5(only_center_face=True)
+        self.face_helper.align_warp_face()
+        if len(self.face_helper.cropped_faces) == 0:
+            raise RuntimeError('facexlib align face fail')
+        align_face = self.face_helper.cropped_faces[0]
+
+        # incase insightface didn't detect face
+        if id_ante_embedding is None:
+            # print('fail to detect face using insightface, extract embedding on align face')
+            id_ante_embedding = self.handler_ante.get_feat(align_face)
+            if np.isnan(id_ante_embedding).any():
+                raise RuntimeError('antelopev2 embedding from align face is nan')
+
+        id_ante_embedding = torch.from_numpy(id_ante_embedding)
+        return id_ante_embedding
+        # id_ante_embedding = torch.from_numpy(id_ante_embedding).to(self.device, self.dtype)
+        # if id_ante_embedding.ndim == 1:
+        #     id_ante_embedding = id_ante_embedding.unsqueeze(0)
+
+        # # NaN check
+        # if torch.isnan(id_ante_embedding).any():
+        #     raise RuntimeError('antelopev2 embedding is nan')
+        
+        # # parsing
+        # input = img2tensor(align_face, bgr2rgb=True).unsqueeze(0) / 255.0
+        # input = input.to(self.device)
+        # parsing_out = self.face_helper.face_parse(normalize(input, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[0]
+        # if torch.isnan(parsing_out).any():
+        #     raise RuntimeError('parsing_out is nan')
+        # parsing_out = parsing_out.argmax(dim=1, keepdim=True)
+        # bg_label = [0, 16, 18, 7, 8, 9, 14, 15]
+        # bg = sum(parsing_out == i for i in bg_label).bool()
+        # white_image = torch.ones_like(input)
+        # # only keep the face features
+        # face_features_image = torch.where(bg, white_image, self.to_gray(input))
+        # self.debug_img_list.append(tensor2img(face_features_image, rgb2bgr=False))
+
+        # # transform img before sending to eva-clip-vit
+        # face_features_image = resize(face_features_image, self.clip_vision_model.image_size, InterpolationMode.BICUBIC)
+        # face_features_image = normalize(face_features_image, self.eva_transform_mean, self.eva_transform_std)
+        # id_cond_vit, id_vit_hidden = self.clip_vision_model(
+        #     face_features_image.to(self.dtype), return_all_features=False, return_hidden=True, shuffle=False
+        # )
+        # if torch.isnan(id_cond_vit).any():
+        #     raise RuntimeError('id_cond_vit is nan')
+        # id_cond_vit_norm = torch.norm(id_cond_vit, 2, 1, True)
+        # id_cond_vit = torch.div(id_cond_vit, id_cond_vit_norm)
+        # if torch.isnan(id_cond_vit).any():
+        #     raise RuntimeError('id_cond_vit after norm is nan')
+
+        # # id_ante_embedding : torch.Size([1, 512])
+        # # id_cond_vit : torch.Size([1, 768])
+        # # id_cond : torch.Size([1, 1280])
+        # id_cond = torch.cat([id_ante_embedding, id_cond_vit], dim=-1)
+
+        # # (Pdb) [ x.shape for x in id_vit_hidden]
+        # # [torch.Size([1, 577, 1024]), torch.Size([1, 577, 1024]), torch.Size([1, 577, 1024]), torch.Size([1, 577, 1024]), torch.Size([1, 577, 1024])]
+        # if self.use_target_clip and trg_image is not None:
+        #     # Do not detect / align, directly send to clip-vit
+        #     print('[INFO] transformer.get_id_embedding : using target clip image for target id embedding')
+        #     trg_image_bgr = cv2.cvtColor(trg_image, cv2.COLOR_RGB2BGR)
+        #     input = img2tensor(trg_image_bgr, bgr2rgb=True).unsqueeze(0) / 255.0
+        #     input = input.to(self.device)
+        #     trg_image_resized = resize(input, self.clip_vision_model.image_size, InterpolationMode.BICUBIC)
+        #     trg_face_features_image = normalize(trg_image_resized, self.eva_transform_mean, self.eva_transform_std)
+        #     trg_id_cond_vit, trg_id_vit_hidden = self.clip_vision_model(
+        #         trg_face_features_image.to(self.dtype), return_all_features=False, return_hidden=True, shuffle=False
+        #     )
+        #     id_embedding = self.pulid_encoder(id_cond, id_vit_hidden, trg_id_cond_vit)
+        # else:
+        #     id_embedding = self.pulid_encoder(id_cond, id_vit_hidden)
+        # if torch.isnan(id_embedding).any():
+        #     raise RuntimeError('id_embedding is nan')
+
+        # if not cal_uncond:
+        #     return id_embedding, None
+
+        # id_uncond = torch.zeros_like(id_cond) # zero embedding for uncond
+        # id_vit_hidden_uncond = []
+        # for layer_idx in range(0, len(id_vit_hidden)):
+        #     id_vit_hidden_uncond.append(torch.zeros_like(id_vit_hidden[layer_idx])) # zero hidden for uncond
+        # uncond_id_embedding = self.pulid_encoder(id_uncond, id_vit_hidden_uncond)
+        # if torch.isnan(uncond_id_embedding).any():
+        #     raise RuntimeError('uncond_id_embedding is nan')
+
+        # return id_embedding, uncond_id_embedding
     
     @torch.no_grad()
     def get_id_embedding_from_id_and_clip(self, id_img, clip_img):
@@ -1477,6 +1634,7 @@ class IDFormer(nn.Module):
             num_queries=32,
             output_dim=2048,
             ff_mult=4,
+            use_target_clip=False,
     ):
         super().__init__()
 
@@ -1486,8 +1644,9 @@ class IDFormer(nn.Module):
         assert depth % 5 == 0
         self.depth = depth // 5
         scale = dim ** -0.5
+        self.use_target_clip = use_target_clip
 
-        self.latents = nn.Parameter(torch.randn(1, num_queries, dim) * scale)
+        self.latents = nn.Parameter(torch.randn(1, num_queries, dim) * scale) # torch.Size([1, 32, 1024])
         self.proj_out = nn.Parameter(scale * torch.randn(dim, output_dim))
 
         self.layers = nn.ModuleList([])
@@ -1505,7 +1664,7 @@ class IDFormer(nn.Module):
             setattr(
                 self,
                 f'mapping_{i}',
-                nn.Sequential(
+                nn.Sequential( # dim : from 1024 -> dim = 1024
                     nn.Linear(1024, 1024),
                     nn.LayerNorm(1024),
                     nn.LeakyReLU(),
@@ -1515,8 +1674,25 @@ class IDFormer(nn.Module):
                     nn.Linear(1024, dim),
                 ),
             )
+            
+            
+        if self.use_target_clip:
+            for i in range(5):
+                setattr(
+                    self,
+                    f'trg_mapping_{i}',
+                    nn.Sequential( # dim : 768 -> dim = 1024
+                        nn.Linear(768, 1024),
+                        nn.LayerNorm(1024),
+                        nn.LeakyReLU(),
+                        nn.Linear(1024, 1024),
+                        nn.LayerNorm(1024),
+                        nn.LeakyReLU(),
+                        nn.Linear(1024, dim),
+                    ),
+                )
 
-        self.id_embedding_mapping = nn.Sequential(
+        self.id_embedding_mapping = nn.Sequential( # from 1280 to dim * num_id_token
             nn.Linear(1280, 1024),
             nn.LayerNorm(1024),
             nn.LeakyReLU(),
@@ -1526,20 +1702,25 @@ class IDFormer(nn.Module):
             nn.Linear(1024, dim * num_id_token),
         )
 
-    def forward(self, x, y):
+    def forward(self, x, y, z=None):
+        # z : target clip cls token for target clip condition 
 
-        latents = self.latents.repeat(x.size(0), 1, 1)
+        latents = self.latents.repeat(x.size(0), 1, 1) # shape : (1, 32, 1024) -> (b, 32, 1024)
 
         num_duotu = x.shape[1] if x.ndim == 3 else 1
 
-        x = self.id_embedding_mapping(x)
-        x = x.reshape(-1, self.num_id_token * num_duotu, self.dim)
+        x = self.id_embedding_mapping(x) # shape : (b, 1280) -> (b, dim * num_id_token) = (b, 5 * 1024)
+        x = x.reshape(-1, self.num_id_token * num_duotu, self.dim) # shape : (b, dim * num_id_token) -> (b, num_id_token, dim), (b, 5, 1024)
 
-        latents = torch.cat((latents, x), dim=1)
+        latents = torch.cat((latents, x), dim=1) # shape : (b, 32, 1024) + (b, 5, 1024) -> (b, 37, 1024), token concat
 
         for i in range(5):
-            vit_feature = getattr(self, f'mapping_{i}')(y[i])
-            ctx_feature = torch.cat((x, vit_feature), dim=1)
+            vit_feature = getattr(self, f'mapping_{i}')(y[i]) # shape
+            ctx_feature = torch.cat((x, vit_feature), dim=1) # token concat : (Pdb) x.shape torch.Size([1, 5, 1024]) (Pdb) vit_feature.shape torch.Size([1, 577, 1024])
+            if self.use_target_clip and (z is not None):
+                trg_clip_cls = getattr(self, f'trg_mapping_{i}')(z) # shape : (b, 768) -> (b, 1024)
+                trg_clip_cls = trg_clip_cls.unsqueeze(1) # (b, 1, 1024)
+                ctx_feature = torch.cat((ctx_feature, trg_clip_cls), dim=1) # (b, 5 + 577 + 1, 1024)
             for attn, ff in self.layers[i * self.depth: (i + 1) * self.depth]:
                 latents = attn(ctx_feature, latents) + latents
                 latents = ff(latents) + latents

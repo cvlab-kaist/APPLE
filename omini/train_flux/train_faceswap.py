@@ -19,8 +19,9 @@ from torchvision.transforms.functional import pil_to_tensor
 import torch.nn.functional as F
 import diffusers
 diffusers.utils.logging.set_verbosity_error()
-torch.backends.cuda.matmul.allow_tf32 = True
-torch.backends.cudnn.allow_tf32 = True
+
+import cv2
+
 
 
 '''
@@ -33,6 +34,15 @@ id_embed_candidates_cache
   '/mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n006573/masked_pulid_id/0410_01.npy',
 '''
 
+def resize_numpy_image_long(image, resize_long_edge=768):
+    h, w = image.shape[:2]
+    if max(h, w) <= resize_long_edge:
+        return image
+    k = resize_long_edge / max(h, w)
+    h = int(h * k)
+    w = int(w * k)
+    image = cv2.resize(image, (w, h), interpolation=cv2.INTER_LANCZOS4)
+    return image
 
 class FFHQDataset(torch.utils.data.Dataset):
 
@@ -156,6 +166,7 @@ class VGGDataset(torch.utils.data.Dataset):
         pseudo_pick_thres = None,
         do_proxy_recon_task = False,
         do_proxy_recon_task_prob = 0.5,
+        model = None,
     ):
         # 예시) /mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000002/0001_01.jpg
         # 예시) /mnt/data2/dataset/VGGface2_None_norm_512_true_bygfpgan/n000002/masked_pulid_id/0001_01.npy
@@ -180,7 +191,11 @@ class VGGDataset(torch.utils.data.Dataset):
         self.id_dirname = id_dirname
         self.do_proxy_recon_task = do_proxy_recon_task
         self.do_proxy_recon_task_prob = do_proxy_recon_task_prob
+        self.model = model
         random.seed(0) # Seed for reproducibility
+        
+        
+        
         if not pseudo:
             print("[INFO] 1st Stage Training: Using real dataset with for VGGDataset")
             
@@ -446,6 +461,18 @@ class VGGDataset(torch.utils.data.Dataset):
                     src_img = Image.open(os.path.join(self.dataset_path, id, os.path.basename(selected_id_embed).replace('.npy', '.jpg'))).convert('RGB')
                 else:
                     face_id_embed = torch.Tensor(np.load(self.id_embed_paths[idx]))
+                    
+                if self.model.use_target_clip:
+                    with torch.no_grad():
+                        id_image = cv2.imread(self.src_img_list[idx])
+                        id_image = cv2.cvtColor(id_image, cv2.COLOR_BGR2RGB)
+                        id_image = resize_numpy_image_long(id_image, 1024)
+                        trg_image = cv2.imread(self.image_paths[idx])
+                        trg_image = cv2.cvtColor(trg_image, cv2.COLOR_BGR2RGB)
+                        trg_image = resize_numpy_image_long(trg_image, 1024)
+                        face_id_embed = self.model.transformer.get_id_embedding_(id_image, cal_uncond=True, trg_image=None)
+                    
+                    
                 gaze_embed = torch.Tensor(np.load(self.gaze_paths[idx])) if self.train_gaze else None
                 
 
@@ -456,7 +483,7 @@ class VGGDataset(torch.utils.data.Dataset):
                     # "prompt_embeds": prompt_embeds,
                     # "pooled_prompt_embeds": pooled_prompt_embeds,
                     "face_id_embed": face_id_embed,
-                    "uncond_id_embed": self.uncond_id_embed,
+                    "uncond_id_embed": self.uncond_id_embed if not self.model.use_target_clip else torch.zeros_like(face_id_embed),
                     # "drop_image_embed": drop_image_embed,
                     'controlnet_img': controlnet_img,
                     "gaze_embed": gaze_embed ,
@@ -481,6 +508,7 @@ class ImageConditionDataset(Dataset):
         drop_gaze_prob: float = 0.1,
         return_pil_image: bool = False,
         position_scale=1.0,
+        mode: str = 'train', # 'train' or 'test'
     ):
         self.base_dataset = base_dataset
         self.condition_size = condition_size
@@ -492,6 +520,7 @@ class ImageConditionDataset(Dataset):
         self.drop_gaze_prob = drop_gaze_prob
         self.return_pil_image = return_pil_image
         self.position_scale = position_scale
+        self.mode = mode
 
 
         self.to_tensor = T.ToTensor()
@@ -561,13 +590,13 @@ class ImageConditionDataset(Dataset):
             drop_id = random.random() < self.drop_id_prob
             drop_gaze = random.random() < self.drop_gaze_prob
 
-            if drop_text:
+            if drop_text and self.mode == 'train':
                 description = ""
-            if drop_image:
+            if drop_image and self.mode == 'train':
                 condition_img = Image.new("RGB", condition_size, (0, 0, 0))
-            if drop_id:
+            if drop_id and self.mode == 'train':
                 id_embed = uncond_id_embed
-            if drop_gaze and gaze_embed is not None:
+            if drop_gaze and gaze_embed is not None and self.mode == 'train':
                 gaze_embed = torch.zeros_like(gaze_embed)
         except Exception as e:
             # In case of error, return a random item
@@ -615,9 +644,48 @@ def test_function(model, save_path, file_name, test_dataset):
         position_delta = each.get('position_delta', [0,0])
         position_scale = each.get('position_scale', 1.0)
         id_embed = each['id_embed']
+        uncond_id_embed = each['uncond_id_embed']
+
         if len(id_embed.shape) == 2: # Make batch size 1
             id_embed = id_embed.unsqueeze(0)
-        uncond_id_embed = each['uncond_id_embed']
+            
+        if model.use_target_clip:
+            from torchvision.transforms.functional import normalize, resize
+            from torchvision.transforms import InterpolationMode
+            
+            with torch.no_grad():
+                id_embed = each['id_embed'].to(model.flux_pipe.dtype).to(model.flux_pipe.device)
+                if len(id_embed.shape) == 1: # Make batch size 1
+                    id_embed = id_embed.unsqueeze(0)
+                src_img = each['src_img'] # [0, 1]
+                
+                src_img_resized = resize(src_img, model.transformer.clip_vision_model.image_size, InterpolationMode.BICUBIC)
+                src_face_features_image = normalize(src_img_resized, model.transformer.eva_transform_mean, model.transformer.eva_transform_std)
+                if len(src_face_features_image.shape) == 3: # Make batch size 1
+                    src_face_features_image = src_face_features_image.unsqueeze(0)
+                id_cond_vit, id_vit_hidden = model.transformer.clip_vision_model(
+                    src_face_features_image.to(model.flux_pipe.dtype).to(model.flux_pipe.device), return_all_features=False, return_hidden=True, shuffle=False
+                )
+                # Uncond id_embed 인 경우
+                if id_embed.sum() == 0 :
+                    id_cond_vit = torch.zeros_like(id_cond_vit).to(model.flux_pipe.dtype).to(model.flux_pipe.device)
+                    id_vit_hidden_uncond = []
+                    for layer_idx in range(0, len(id_vit_hidden)):
+                        id_vit_hidden_uncond.append(torch.zeros_like(id_vit_hidden[layer_idx]).to(model.flux_pipe.dtype).to(model.flux_pipe.device)) # zero hidden for uncond
+                    id_vit_hidden = id_vit_hidden_uncond
+                
+                trg_img = each["image"] # [0, 1]
+                trg_image_resized = resize(trg_img, model.transformer.clip_vision_model.image_size, InterpolationMode.BICUBIC)
+                trg_face_features_image = normalize(trg_image_resized, model.transformer.eva_transform_mean, model.transformer.eva_transform_std)
+                if len(trg_face_features_image.shape) == 3: # Make batch size 1
+                    trg_face_features_image = trg_face_features_image.unsqueeze(0)
+                trg_id_cond_vit, _ = model.transformer.clip_vision_model(
+                    trg_face_features_image.to(model.flux_pipe.dtype).to(model.flux_pipe.device), return_all_features=False, return_hidden=True, shuffle=False
+                )
+                id_cond = torch.cat([id_embed, id_cond_vit], dim=-1).to(model.flux_pipe.dtype).to(model.flux_pipe.device)  # (1, id_dim + vit_dim)
+                id_embed = model.transformer.pulid_encoder(id_cond, id_vit_hidden, trg_id_cond_vit)  
+                # id_embed = model.transformer.pulid_encoder(id_cond, id_vit_hidden, None)  
+            
         condition = Condition(condition_img, model.adapter_names[2], position_delta, position_scale)
         target_size = model.training_config["dataset"]["target_size"]
         gaze_embed = each.get('gaze_embed', None) # (gaze_dim,) or None
@@ -678,6 +746,13 @@ def test_function(model, save_path, file_name, test_dataset):
 
 
 def main():
+    # # Set start method for multiprocessing
+    # import torch.multiprocessing as mp
+    # try:
+    #     mp.set_start_method('spawn', force=True)
+    # except RuntimeError:
+    #     pass
+
     # Set seed
     seed = 0
     random.seed(seed)
@@ -738,75 +813,6 @@ def main():
             torch.save(id_embed_candidates_cache, cache_vgg_path)
             print(f"[INFO] Cached VGG ID embed candidates saved to {cache_vgg_path}")
 
-    
-    train_dataset = dataset_class(
-        dataset_path=training_config["dataset"]["dataset_path"],
-        mode='train',
-        train_size = training_config["dataset"].get("train_size", None),
-        num_validation = training_config["dataset"].get("num_validation", 5),
-        condition_type=training_config["dataset"].get("condition_type", 'condition_blended_image_blurdownsample8_segGlass_landmark'),
-        gaze_type=training_config.get("gaze_type", 'unigaze'),
-        pseudo=training_config["dataset"].get("pseudo", False),
-        swapped_path=training_config["dataset"].get("swapped_path", None),
-        id_from = training_config["dataset"].get("id_from", "original"),
-        swapped_condition_type=training_config["dataset"].get("swapped_condition_type", None),
-        id_embed_candidates_cache=id_embed_candidates_cache if cache_vgg and dataset_type == "vgg" else None,
-        get_random_id_embed_every_step=training_config["dataset"].get("get_random_id_embed_every_step", False),
-        validation_with_other_src_id_embed = training_config["dataset"].get("validation_with_other_src_id_embed", False),
-        aes_thres=training_config["dataset"].get("aes_thres", 5.5),
-        pseudo_aes_thres=training_config["dataset"].get("pseudo_aes_thres", None),
-        pseudo_pick_thres=training_config["dataset"].get("pseudo_pick_thres",  None),
-        do_proxy_recon_task=training_config["dataset"].get("do_proxy_recon_task", False),
-        do_proxy_recon_task_prob=training_config["dataset"].get("do_proxy_recon_task_prob", 0.5),
-
-    )
-    test_dataset = dataset_class(
-        dataset_path=training_config["dataset"]["dataset_path"],
-        mode='test',
-        train_size = training_config["dataset"].get("train_size", None),
-        num_validation = training_config["dataset"].get("num_validation", 5),
-        condition_type= training_config["dataset"].get("condition_type", 'condition_blended_image_blurdownsample8_segGlass_landmark'),
-        gaze_type=training_config.get("gaze_type", 'unigaze'),
-        pseudo=training_config["dataset"].get("pseudo", False),
-        swapped_path=training_config["dataset"].get("swapped_path", None),
-        id_from = training_config["dataset"].get("id_from", "original"),
-        swapped_condition_type=training_config["dataset"].get("swapped_condition_type", None),
-        id_embed_candidates_cache=id_embed_candidates_cache if cache_vgg and dataset_type == "vgg" else None,
-        get_random_id_embed_every_step= False, # no need for testing
-        validation_with_other_src_id_embed = training_config["dataset"].get("validation_with_other_src_id_embed", False),
-        aes_thres=training_config["dataset"].get("aes_thres", 5.5),
-        pseudo_aes_thres=training_config["dataset"].get("pseudo_aes_thres", None),
-        pseudo_pick_thres=training_config["dataset"].get("pseudo_pick_thres",  None),
-        do_proxy_recon_task=training_config["dataset"].get("do_proxy_recon_task", False),
-        do_proxy_recon_task_prob=training_config["dataset"].get("do_proxy_recon_task_prob", 0.5),
-    )
-
-    # Initialize custom dataset
-    dataset = ImageConditionDataset(
-        train_dataset,
-        condition_size=training_config["dataset"]["condition_size"],
-        target_size=training_config["dataset"]["target_size"],
-        condition_type=training_config["condition_type"],
-        drop_text_prob=training_config["dataset"]["drop_text_prob"],
-        drop_image_prob=training_config["dataset"]["drop_image_prob"],
-        drop_id_prob=training_config["dataset"].get("drop_id_prob", 0.1),
-        drop_gaze_prob=training_config["dataset"].get("drop_gaze_prob", 0.1),
-        position_scale=training_config["dataset"].get("position_scale", 1.0),
-    )
-
-    test_dataset = ImageConditionDataset(
-        test_dataset,
-        condition_size=training_config["dataset"]["condition_size"],
-        target_size=training_config["dataset"]["target_size"],
-        condition_type=training_config["condition_type"],
-        drop_text_prob=0.0,
-        drop_image_prob=0.0,
-        drop_id_prob=0.0,
-        drop_gaze_prob=0.0,
-        position_scale=training_config["dataset"].get("position_scale", 1.0),
-    )
-    # with torch.utils.checkpoint.set_checkpoint_debug_enabled(True):
-    
     # Initialize model
     trainable_model = OminiModel(
         flux_pipe_id=config["flux_path"],
@@ -832,8 +838,81 @@ def main():
         train_lpips_loss=training_config.get("train_lpips_loss", False),
         lpips_weight=training_config.get("lpips_weight", 1.0),
         lpips_loss_thres=training_config.get("lpips_loss_thres", 0.5),
+        use_target_clip=training_config.get("use_target_clip", False),
+    )
+    
+    train_dataset = dataset_class(
+        dataset_path=training_config["dataset"]["dataset_path"],
+        mode='train',
+        train_size = training_config["dataset"].get("train_size", None),
+        num_validation = training_config["dataset"].get("num_validation", 5),
+        condition_type=training_config["dataset"].get("condition_type", 'condition_blended_image_blurdownsample8_segGlass_landmark'),
+        gaze_type=training_config.get("gaze_type", 'unigaze'),
+        pseudo=training_config["dataset"].get("pseudo", False),
+        swapped_path=training_config["dataset"].get("swapped_path", None),
+        id_from = training_config["dataset"].get("id_from", "original"),
+        swapped_condition_type=training_config["dataset"].get("swapped_condition_type", None),
+        id_embed_candidates_cache=id_embed_candidates_cache if cache_vgg and dataset_type == "vgg" else None,
+        get_random_id_embed_every_step=training_config["dataset"].get("get_random_id_embed_every_step", False),
+        validation_with_other_src_id_embed = training_config["dataset"].get("validation_with_other_src_id_embed", False),
+        aes_thres=training_config["dataset"].get("aes_thres", 5.5),
+        pseudo_aes_thres=training_config["dataset"].get("pseudo_aes_thres", None),
+        pseudo_pick_thres=training_config["dataset"].get("pseudo_pick_thres",  None),
+        do_proxy_recon_task=training_config["dataset"].get("do_proxy_recon_task", False),
+        do_proxy_recon_task_prob=training_config["dataset"].get("do_proxy_recon_task_prob", 0.5),
+        model=trainable_model,
 
     )
+    test_dataset = dataset_class(
+        dataset_path=training_config["dataset"]["dataset_path"],
+        mode='test',
+        train_size = training_config["dataset"].get("train_size", None),
+        num_validation = training_config["dataset"].get("num_validation", 5),
+        condition_type= training_config["dataset"].get("condition_type", 'condition_blended_image_blurdownsample8_segGlass_landmark'),
+        gaze_type=training_config.get("gaze_type", 'unigaze'),
+        pseudo=training_config["dataset"].get("pseudo", False),
+        swapped_path=training_config["dataset"].get("swapped_path", None),
+        id_from = training_config["dataset"].get("id_from", "original"),
+        swapped_condition_type=training_config["dataset"].get("swapped_condition_type", None),
+        id_embed_candidates_cache=id_embed_candidates_cache if cache_vgg and dataset_type == "vgg" else None,
+        get_random_id_embed_every_step= False, # no need for testing
+        validation_with_other_src_id_embed = training_config["dataset"].get("validation_with_other_src_id_embed", False),
+        aes_thres=training_config["dataset"].get("aes_thres", 5.5),
+        pseudo_aes_thres=training_config["dataset"].get("pseudo_aes_thres", None),
+        pseudo_pick_thres=training_config["dataset"].get("pseudo_pick_thres",  None),
+        do_proxy_recon_task=training_config["dataset"].get("do_proxy_recon_task", False),
+        do_proxy_recon_task_prob=training_config["dataset"].get("do_proxy_recon_task_prob", 0.5),
+        model=trainable_model,
+    )
+
+    # Initialize custom dataset
+    dataset = ImageConditionDataset(
+        train_dataset,
+        condition_size=training_config["dataset"]["condition_size"],
+        target_size=training_config["dataset"]["target_size"],
+        condition_type=training_config["condition_type"],
+        drop_text_prob=training_config["dataset"]["drop_text_prob"],
+        drop_image_prob=training_config["dataset"]["drop_image_prob"],
+        drop_id_prob=training_config["dataset"].get("drop_id_prob", 0.1),
+        drop_gaze_prob=training_config["dataset"].get("drop_gaze_prob", 0.1),
+        position_scale=training_config["dataset"].get("position_scale", 1.0),
+        mode = 'train',
+    )
+
+    test_dataset = ImageConditionDataset(
+        test_dataset,
+        condition_size=training_config["dataset"]["condition_size"],
+        target_size=training_config["dataset"]["target_size"],
+        condition_type=training_config["condition_type"],
+        drop_text_prob=0.0,
+        drop_image_prob=0.0,
+        drop_id_prob=0.0,
+        drop_gaze_prob=0.0,
+        position_scale=training_config["dataset"].get("position_scale", 1.0),
+        mode = 'test',
+    )
+    # with torch.utils.checkpoint.set_checkpoint_debug_enabled(True):
+    
     train(dataset, trainable_model, config, test_function=lambda *args : test_function(*args, test_dataset=test_dataset))
 
 
