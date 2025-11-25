@@ -1,199 +1,207 @@
-# OminiControl
+# FluxSwap
 
+- [FluxSwap](#fluxswap)
+  - [1. 프로젝트 개요](#1-프로젝트-개요)
+  - [2. 설치](#2-설치)
+    - [2.1. 요구사항](#21-요구사항)
+    - [2.2. 저장소 복제](#22-저장소-복제)
+    - [2.3. Conda 환경 설정](#23-conda-환경-설정)
+    - [2.4. 데이터셋 준비](#24-데이터셋-준비)
+  - [3. 훈련 (Teacher Model)](#3-훈련-teacher-model)
+    - [3.1. 데이터 전처리](#31-데이터-전처리)
+      - [3.1.1. 3DMM Landmark 추출](#311-3dmm-landmark-추출)
+      - [3.1.2. Gaze Landmark 추출](#312-gaze-landmark-추출)
+      - [3.1.3. 최종 조건 이미지 생성](#313-최종-조건-이미지-생성)
+    - [3.2. 모델 훈련](#32-모델-훈련)
+  - [4. 추론 (Teacher Model)](#4-추론-teacher-model)
+    - [4.1. FFHQ 데이터셋 추론](#41-ffhq-데이터셋-추론)
+    - [4.2. 수도 데이터셋 생성](#42-수도-데이터셋-생성)
 
-<img src='./assets/demo/demo_this_is_omini_control.jpg' width='100%' />
-<br>
+## 1. 프로젝트 개요
 
-<a href="https://huggingface.co/Yuanshi/OminiControl"><img src="https://img.shields.io/badge/🤗_HuggingFace-Model-ffbd45.svg" alt="HuggingFace"></a>
-<a href="https://huggingface.co/spaces/Yuanshi/OminiControl"><img src="https://img.shields.io/badge/🤗_HuggingFace-Demo-ffbd45.svg" alt="HuggingFace"></a>
-<a href="https://huggingface.co/spaces/Yuanshi/OminiControl_Art"><img src="https://img.shields.io/badge/🤗_HuggingFace-Demo2-ffbd45.svg" alt="HuggingFace"></a>
-<a href="https://github.com/Yuanshi9815/Subjects200K"><img src="https://img.shields.io/badge/GitHub-Dataset-blue.svg?logo=github&" alt="GitHub"></a>
-<a href="https://huggingface.co/datasets/Yuanshi/Subjects200K"><img src="https://img.shields.io/badge/🤗_HuggingFace-Dataset-ffbd45.svg" alt="HuggingFace"></a>
-<br>
-<a href="https://arxiv.org/abs/2411.15098"><img src="https://img.shields.io/badge/ariXv-OminiControl-A42C25.svg" alt="arXiv"></a>
-<a href="https://arxiv.org/abs/2503.08280"><img src="https://img.shields.io/badge/ariXv-OminiControl2-A42C25.svg" alt="arXiv"></a>
+이 문서는 Diffusion Model (Teacher Model)의 훈련 및 추론 과정을 설명을 목표로 함.
 
-> **OminiControl: Minimal and Universal Control for Diffusion Transformer**
-> <br>
-> Zhenxiong Tan, 
-> [Songhua Liu](http://121.37.94.87/), 
-> [Xingyi Yang](https://adamdad.github.io/), 
-> Qiaochu Xue, 
-> and 
-> [Xinchao Wang](https://sites.google.com/site/sitexinchaowang/)
-> <br>
-> [xML Lab](https://sites.google.com/view/xml-nus), National University of Singapore
-> <br>
+## 2. 설치
 
-> **OminiControl2: Efficient Conditioning for Diffusion Transformers**
-> <br>
-> Zhenxiong Tan, 
-> Qiaochu Xue, 
-> [Xingyi Yang](https://adamdad.github.io/), 
-> [Songhua Liu](http://121.37.94.87/), 
-> and 
-> [Xinchao Wang](https://sites.google.com/site/sitexinchaowang/)
-> <br>
-> [xML Lab](https://sites.google.com/view/xml-nus), National University of Singapore
-> <br>
+### 2.1. 요구사항
 
+- NVIDIA GPU
+- Anaconda (Conda)
 
+### 2.2. 저장소 복제
 
-## Features
-
-OminiControl is a minimal yet powerful universal control framework for Diffusion Transformer models like [FLUX](https://github.com/black-forest-labs/flux).
-
-* **Universal Control 🌐**:  A unified control framework that supports both subject-driven control and spatial control (such as edge-guided and in-painting generation).
-
-* **Minimal Design 🚀**: Injects control signals while preserving original model structure. Only introduces 0.1% additional parameters to the base model.
-
-## News
-- **2025-05-12**: ⭐️ The code of [OminiControl2](https://arxiv.org/abs/2503.08280) is released. It introduces a new efficient conditioning method for diffusion transformers. (Check out the training code [here](./train)).
-- **2025-05-12**: Support custom style LoRA. (Check out the [example](./examples/combine_with_style_lora.ipynb)).
-- **2025-04-09**: ⭐️ [OminiControl Art](https://huggingface.co/spaces/Yuanshi/OminiControl_Art) is released. It can stylize any image with a artistic style. (Check out the [demo](https://huggingface.co/spaces/Yuanshi/OminiControl_Art) and [inference examples](./examples/ominicontrol_art.ipynb)).
-- **2024-12-26**: Training code are released. Now you can create your own OminiControl model by customizing any control tasks (3D, multi-view, pose-guided, try-on, etc.) with the FLUX model. Check the [training folder](./train) for more details.
-
-## Quick Start
-### Setup (Optional)
-1. **Environment setup**
 ```bash
-conda create -n omini python=3.12
-conda activate omini
+git clone https://github.com/your-repo/fluxswap.git
+cd fluxswap
 ```
-2. **Requirements installation**
+
+> **참고**: `<PROJECT_ROOT>`는 이 `fluxswap` 디렉토리의 절대 경로를 의미합니다.
+
+### 2.3. Conda 환경 설정
+
+이 프로젝트는 `3DDFA_env`, `mediapipe`, `faceswap_omini` 세 가지 Conda 환경을 사용합니다.
+
+**1. 3DDFA_env**
+- [원본 Github](https://github.com/wang-zidu/3DDFA-V3)
+- 3DMM Landmark 추출에 사용됩니다.
+
 ```bash
-pip install -r requirements.txt
+conda env create --file preprocess/3DDFA_env.yaml
 ```
-### Usage example
-1. Subject-driven generation: `examples/subject.ipynb`
-2. In-painting: `examples/inpainting.ipynb`
-3. Canny edge to image, depth to image, colorization, deblurring: `examples/spatial.ipynb`
 
+**2. mediapipe**
+- [원본 Github](https://github.com/Morris88826/MediaPipe_Iris)
+- Gaze Landmark 추출에 사용됩니다.
 
-### Guidelines for subject-driven generation
-1. Input images are automatically center-cropped and resized to 512x512 resolution.
-2. When writing prompts, refer to the subject using phrases like `this item`, `the object`, or `it`. e.g.
-   1. *A close up view of this item. It is placed on a wooden table.*
-   2. *A young lady is wearing this shirt.*
-3. The model primarily works with objects rather than human subjects currently, due to the absence of human data in training.
-
-## Generated samples
-### Subject-driven generation
-<a href="https://huggingface.co/spaces/Yuanshi/OminiControl"><img src="https://img.shields.io/badge/🤗_HuggingFace-Space-ffbd45.svg" alt="HuggingFace"></a>
-
-**Demos** (Left: condition image; Right: generated image)
-
-<div float="left">
-  <img src='./assets/demo/oranges_omini.jpg' width='48%'/>
-  <img src='./assets/demo/rc_car_omini.jpg' width='48%' />
-  <img src='./assets/demo/clock_omini.jpg' width='48%' />
-  <img src='./assets/demo/shirt_omini.jpg' width='48%' />
-</div>
-
-<details>
-<summary>Text Prompts</summary>
-
-- Prompt1: *A close up view of this item. It is placed on a wooden table. The background is a dark room, the TV is on, and the screen is showing a cooking show. With text on the screen that reads 'Omini Control!.'*
-- Prompt2: *A film style shot. On the moon, this item drives across the moon surface. A flag on it reads 'Omini'. The background is that Earth looms large in the foreground.*
-- Prompt3: *In a Bauhaus style room, this item is placed on a shiny glass table, with a vase of flowers next to it. In the afternoon sun, the shadows of the blinds are cast on the wall.*
-- Prompt4: *"On the beach, a lady sits under a beach umbrella with 'Omini' written on it. She's wearing this shirt and has a big smile on her face, with her surfboard hehind her. The sun is setting in the background. The sky is a beautiful shade of orange and purple."*
-</details>
-<details>
-<summary>More results</summary>
-
-* Try on:
-  <img src='./assets/demo/try_on.jpg'/>
-* Scene variations:
-  <img src='./assets/demo/scene_variation.jpg'/>
-* Dreambooth dataset:
-  <img src='./assets/demo/dreambooth_res.jpg'/>
-* Oye-cartoon finetune:
-  <div float="left">
-    <img src='./assets/demo/man_omini.jpg' width='48%' />
-    <img src='./assets/demo/panda_omini.jpg' width='48%' />
-  </div>
-</details>
-
-### Spatially aligned control
-1. **Image Inpainting** (Left: original image; Center: masked image; Right: filled image)
-  - Prompt: *The Mona Lisa is wearing a white VR headset with 'Omini' written on it.*
-    </br>
-    <img src='./assets/demo/monalisa_omini.jpg' width='700px' />
-  - Prompt: *A yellow book with the word 'OMINI' in large font on the cover. The text 'for FLUX' appears at the bottom.*
-    </br>
-    <img src='./assets/demo/book_omini.jpg' width='700px' />
-2. **Other spatially aligned tasks**  (Canny edge to image, depth to image, colorization, deblurring) 
-    </br>
-    <details>
-    <summary>Click to show</summary>
-    <div float="left">
-      <img src='./assets/demo/room_corner_canny.jpg' width='48%'/>
-      <img src='./assets/demo/room_corner_depth.jpg' width='48%' />
-      <img src='./assets/demo/room_corner_coloring.jpg' width='48%' />
-      <img src='./assets/demo/room_corner_deblurring.jpg' width='48%' />
-    </div>
-    
-    Prompt: *A light gray sofa stands against a white wall, featuring a black and white geometric patterned pillow. A white side table sits next to the sofa, topped with a white adjustable desk lamp and some books. Dark hardwood flooring contrasts with the pale walls and furniture.*
-    </details>
-   
-### Stylize images
-<a href="https://huggingface.co/spaces/Yuanshi/OminiControl_Art"><img src="https://img.shields.io/badge/🤗_HuggingFace-Demo2-ffbd45.svg" alt="HuggingFace"></a>
-</br>
-<img src='./assets/demo/art1.png' width='600px' />
-<img src='./assets/demo/art2.png' width='600px' />
-</br>
-
-
-
-## Models
-
-**Subject-driven control:**
-| Model                                                                                            | Base model     | Description                                                                                                                                                 | Resolution   |
-| ------------------------------------------------------------------------------------------------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| [`experimental`](https://huggingface.co/Yuanshi/OminiControl/tree/main/experimental) / `subject` | FLUX.1-schnell | The model used in the paper.                                                                                                                                | (512, 512)   |
-| [`omini`](https://huggingface.co/Yuanshi/OminiControl/tree/main/omini) / `subject_512`           | FLUX.1-schnell | The model has been fine-tuned on a larger dataset.                                                                                                          | (512, 512)   |
-| [`omini`](https://huggingface.co/Yuanshi/OminiControl/tree/main/omini) / `subject_1024`          | FLUX.1-schnell | The model has been fine-tuned on a larger dataset and accommodates higher resolution.                                                                       | (1024, 1024) |
-| [`oye-cartoon`](https://huggingface.co/saquiboye/oye-cartoon)                                    | FLUX.1-dev     | The model has been fine-tuned on [oye-cartoon](https://huggingface.co/datasets/saquiboye/oye-cartoon) dataset by [@saquib764](https://github.com/Saquib764) | (512, 512)   |
-
-**Spatial aligned control:**
-| Model                                                                                                     | Base model | Description                                                                | Resolution   |
-| --------------------------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------- | ------------ |
-| [`experimental`](https://huggingface.co/Yuanshi/OminiControl/tree/main/experimental) / `<task_name>`      | FLUX.1     | Canny edge to image, depth to image, colorization, deblurring, in-painting | (512, 512)   |=
-
-## Community Extensions
-- [ComfyUI-Diffusers-OminiControl](https://github.com/Macoron/ComfyUI-Diffusers-OminiControl) - ComfyUI integration by [@Macoron](https://github.com/Macoron)
-- [ComfyUI_RH_OminiControl](https://github.com/HM-RunningHub/ComfyUI_RH_OminiControl) - ComfyUI integration by [@HM-RunningHub](https://github.com/HM-RunningHub)
-
-## Limitations
-1. The model's subject-driven generation primarily works with objects rather than human subjects due to the absence of human data in training.
-2. The subject-driven generation model may not work well with `FLUX.1-dev`.
-3. The released model only supports the resolution of 512x512.
-
-## Training
-Training instructions can be found in this [folder](./train).
-
-
-## To-do
-- [x] Release the training code.
-- [x] Release the model for higher resolution (1024x1024).
-
-## Acknowledgment
-We would like to acknowledge that the computational work involved in this research work is partially supported by NUS IT’s Research Computing group using grant numbers NUSREC-HPC-00001.
-
-## Citation
+```bash
+conda env create --file preprocess/mediapipe.yaml
 ```
-@article{tan2025ominicontrol,
-  title={OminiControl: Minimal and Universal Control for Diffusion Transformer},
-  author={Tan, Zhenxiong and Liu, Songhua and Yang, Xingyi and Xue, Qiaochu and Wang, Xinchao},
-  booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision},
-  year={2025}
-}
 
-@article{tan2025ominicontrol2,
-  title={OminiControl2: Efficient Conditioning for Diffusion Transformers},
-  author={Tan, Zhenxiong and Xue, Qiaochu and Yang, Xingyi and Liu, Songhua and Wang, Xinchao},
-  journal={arXiv preprint arXiv:2503.08280},
-  year={2025}
-}
+**3. faceswap_omini**
+- 최종 조건 이미지 생성, 모델 훈련 및 추론에 사용됩니다.
+
+```bash
+conda env create --file preprocess/faceswap_omini.yaml
+conda activate faceswap_omini
+
+# mmcv 및 mmsegmentation 설치
+pip install -e preprocess/mmcv
+pip install -e preprocess/mmsegmentation
 ```
-# fluxswap
+
+### 2.4. 데이터셋 준비
+
+- **VGGFace2-HQ**: 훈련에 사용되는 주요 데이터셋입니다.
+  - 이 문서에서는 데이터셋이 특정 경로(예: `<VGGFACE2_HQ_PATH>`)에 저장되어 있다고 가정합니다.
+- **FFHQ**: 평가(Evaluation)에 사용됩니다.
+  - FFHQ 데이터셋은 `src`와 `trg` 폴더로 구성되며, 각 폴더는 VGGFace2-HQ와 유사한 전처리 구조를 가집니다. (자세한 구조는 [4.1. FFHQ 데이터셋 추론](#41-ffhq-데이터셋-추론) 참고)
+
+## 3. 훈련 (Teacher Model)
+
+### 3.1. 데이터 전처리
+
+VGGFace2-HQ 데이터셋을 사용하여 총 3단계의 전처리 과정을 거칩니다.
+
+#### 3.1.1. 3DMM Landmark 추출
+
+- **Conda 환경**: `3DDFA_env`
+- **수정 파일**: `<PROJECT_ROOT>/preprocess/3DDFA-V3/demo_from_folder_jiwon_vgg.py`
+  - `line 24`: VGGFace2-HQ 데이터셋 경로 ( `<VGGFACE2_HQ_PATH>` )로 수정해야 합니다.
+- **실행**:
+  - 단일 GPU:
+    ```bash
+    cd <PROJECT_ROOT>/preprocess/3DDFA-V3/
+    ./run_vgg.sh
+    ```
+  - 다중 GPU:
+    ```bash
+    cd <PROJECT_ROOT>/preprocess/3DDFA-V3/
+    ./run_vgg_multigpu.sh
+    ```
+- **결과**: `<VGGFACE2_HQ_PATH>/3dmm/` 폴더에 저장됩니다.
+
+#### 3.1.2. Gaze Landmark 추출
+
+- **Conda 환경**: `mediapipe`
+- **수정 파일**: `<PROJECT_ROOT>/preprocess/MediaPipe_Iris/inference.py`
+  - `line 34`, `dataset_path`: VGGFace2-HQ 데이터셋 경로 ( `<VGGFACE2_HQ_PATH>` )로 수정해야 합니다.
+- **실행**:
+  - 단일 GPU:
+    ```bash
+    cd <PROJECT_ROOT>/preprocess/MediaPipe_Iris/
+    ./inference.sh
+    ```
+  - 다중 GPU:
+    ```bash
+    cd <PROJECT_ROOT>/preprocess/MediaPipe_Iris/
+    ./inference_torchrun.sh
+    ```
+- **결과**: `<VGGFACE2_HQ_PATH>/iris/` 폴더에 저장됩니다.
+
+#### 3.1.3. 최종 조건 이미지 생성
+
+- **Conda 환경**: `faceswap_omini`
+- **수정 파일**: `<PROJECT_ROOT>/preprocess/vgg_preprocess_seg_mask_gaze_multigpu_samsung.py`
+  - `line 73`, `image_folder_path`: VGGFace2-HQ 데이터셋 경로 ( `<VGGFACE2_HQ_PATH>` )로 수정해야 합니다.
+- **실행**:
+  ```bash
+  # faceswap_omini 환경 활성화
+  conda activate faceswap_omini
+  # 스크립트 실행 (필요 시 torchrun 등 사용)
+  python <PROJECT_ROOT>/preprocess/vgg_preprocess_seg_mask_gaze_multigpu_samsung.py
+  ```
+- **결과**: `<VGGFACE2_HQ_PATH>/condition_blended_image_blurdownsample8_segGlass_landmark_iris` 폴더에 저장됩니다.
+
+### 3.2. 모델 훈련
+
+- **Conda 환경**: `faceswap_omini`
+- **설정 파일**: `<PROJECT_ROOT>/train/config/baseline_vgg_0.35.yaml`
+  - `netarc_path`: 사용할 Arc2Face 모델 경로로 수정해야 합니다.
+  - `dataset_path`: VGGFace2-HQ 데이터셋 경로 ( `<VGGFACE2_HQ_PATH>` )로 수정해야 합니다.
+- **실행**:
+  ```bash
+  cd <PROJECT_ROOT>/train/script
+  ./baseline_vgg.sh
+  ```
+
+## 4. 추론 (Teacher Model)
+
+- **Conda 환경**: `faceswap_omini`
+- **사용 체크포인트 (예시)**: `<PROJECT_ROOT>/runs/baseline_dataset[vgg_aes5.1]_loss[maskid_netarc_t0.35]_loss[lpips_t0.35]_train[omini]/ckpt/step199999_global50000`
+
+### 4.1. FFHQ 데이터셋 추론
+
+평가용 FFHQ 데이터셋에 대한 추론 예시입니다.
+
+- **`base_path`**: 프로젝트 루트 경로 ( `<PROJECT_ROOT>` )
+- **`ffhq_base_path`**: 전처리된 FFHQ 데이터셋 경로. 아래와 같은 구조를 가정합니다.
+  ```
+  <FFHQ_BASE_PATH>/
+  ├── src
+  │   ├── 3dmm
+  │   ├── condition_...
+  │   ├── ...
+  │   └── 000000.jpg
+  └── trg
+      ├── 3dmm
+      ├── condition_...
+      │   ...
+      └── 000000.jpg
+  ```
+- **`id_guidance_scale`**: 높게 설정할수록 ID 정체성(identity) 반영률이 높아지지만, 속성(attribute) 보존율은 감소할 수 있습니다. (최소값: 1.0)
+
+**Inversion 미사용 시**
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1,2 torchrun --standalone --nproc_per_node=3 pulid_omini_inference_ffhq_inversion_args_multigpu.py \
+    --base_path <PROJECT_ROOT> \
+    --ffhq_base_path <FFHQ_BASE_PATH> \
+    --run_name 'baseline_dataset[vgg_aes5.1]_loss[maskid_netarc_t0.35]_loss[lpips_t0.35]_train[omini]' \
+    --ckpt step199999_global50000 \
+    --guidance_scale 1.0 \
+    --image_guidance_scale 1.0 \
+    --id_guidance_scale 1.0 \
+    --condition_type 'blur_landmark_iris'
+```
+
+**Inversion 사용 시**
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --standalone --nproc_per_node=4 pulid_omini_inference_ffhq_inversion_args_multigpu.py \
+    --base_path <PROJECT_ROOT> \
+    --ffhq_base_path <FFHQ_BASE_PATH> \
+    --run_name 'baseline_dataset[vgg_aes5.1]_loss[maskid_netarc_t0.35]_loss[lpips_t0.35]_train[omini]' \
+    --ckpt step199999_global50000 \
+    --guidance_scale 1.0 \
+    --image_guidance_scale 1.0 \
+    --id_guidance_scale 1.0 \
+    --condition_type 'blur_landmark_iris'
+```
+
+### 4.2. 수도 데이터셋 생성
+
+VGGFace2-HQ 기반으로 수도(pseudo) 데이터셋을 생성합니다.
+
+- **실행**:
+  - `<PROJECT_ROOT>/pulid_omini_dataset_gen_fluxpseudovgg_multigpu.sh` 쉘 스크립트를 실행합니다.
+  - `line 34`, `lora_file_path`: 스크립트 내에서 사용할 체크포인트 경로를 설정할 수 있습니다.
