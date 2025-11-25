@@ -44,10 +44,7 @@ cd fluxswap
 **1. 3DDFA_env**
 - [원본 Github](https://github.com/wang-zidu/3DDFA-V3)
 - 3DMM Landmark 추출에 사용됩니다.
-
-```bash
-conda env create --file preprocess/3DDFA_env.yaml
-```
+- 3DDFA의 체크포인트 및 환경은, [원본 Github의 안내](https://github.com/wang-zidu/3DDFA-V3/tree/main/assets)를 따라 설치하고, 스크립트만 따로 실행하는 것을 추천드립니다!
 
 **2. mediapipe**
 - [원본 Github](https://github.com/Morris88826/MediaPipe_Iris)
@@ -84,7 +81,7 @@ VGGFace2-HQ 데이터셋을 사용하여 총 3단계의 전처리 과정을 거�
 
 #### 3.1.1. 3DMM Landmark 추출
 
-- **Conda 환경**: `3DDFA_env`
+- **Conda 환경**: `3DDFA 제공 Conda`
 - **수정 파일**: `<PROJECT_ROOT>/preprocess/3DDFA-V3/demo_from_folder_jiwon_vgg.py`
   - `line 24`: VGGFace2-HQ 데이터셋 경로 ( `<VGGFACE2_HQ_PATH>` )로 수정해야 합니다.
 - **실행**:
@@ -201,6 +198,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --standalone --nproc_per_node=4 pulid_omin
 ### 4.2. 수도 데이터셋 생성
 
 VGGFace2-HQ 기반으로 수도(pseudo) 데이터셋을 생성합니다.
+VGGFace2-HQ 데이터셋은 전처리가 되어있어야 합니다.
 
 - **실행**:
   - `<PROJECT_ROOT>/pulid_omini_dataset_gen_fluxpseudovgg_multigpu.sh` 쉘 스크립트를 실행합니다.
