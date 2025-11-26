@@ -75,6 +75,10 @@ pip install -e preprocess/mmsegmentation
 
 ## 3. 훈련 (Teacher Model)
 
+### 3.0. VGGFace2-HQ 데이터 다운로드
+- [HuggingFace](https://huggingface.co/datasets/RichardErkhov/VGGFace2-HQ/tree/main)에 업로드되어 있는 데이터셋을 사용합니다.
+- `original` 폴더의 압축을 해제한 데이터를 사용합니다.
+
 ### 3.1. 데이터 전처리
 
 VGGFace2-HQ 데이터셋을 사용하여 총 3단계의 전처리 과정을 거칩니다.
@@ -128,6 +132,13 @@ VGGFace2-HQ 데이터셋을 사용하여 총 3단계의 전처리 과정을 거�
   python <PROJECT_ROOT>/preprocess/vgg_preprocess_seg_mask_gaze_multigpu_samsung.py
   ```
 - **결과**: `<VGGFACE2_HQ_PATH>/condition_blended_image_blurdownsample8_segGlass_landmark_iris` 폴더에 저장됩니다.
+
+
+#### 3.1.4. 데이터셋 필터링
+
+- VGGFace2-HQ 이미지들에 대해 미리 LAION Aesthetics를 이용해 Score를 계산하고, 데이터 필터링에 활용합니다.
+- `<PROJECT_ROOT>/preprocess/vgg_preprocess_score_multigpu.py` 파일로 `score.json` 파일 생성이 가능합니다.
+- 저희가 사용한 예시 파일은 `<PROJECT_ROOT>/preprocess/score.json` 입니다.
 
 ### 3.2. 모델 훈련
 
