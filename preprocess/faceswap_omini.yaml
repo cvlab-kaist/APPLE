@@ -1,4 +1,4 @@
-name: faceswap_omini
+name: faceswap_test
 channels:
   - defaults
   - https://repo.anaconda.com/pkgs/main
@@ -83,9 +83,9 @@ dependencies:
       - deepframe==0.1.1
       - deeplake==4.4.0
       - defusedxml==0.7.1
-      - diffusers==0.36.0.dev0
+      - diffusers
       - dill==0.4.0
-      - dlib==20.0.0
+      # - dlib==20.0.0
       - easydict==1.13
       - einops==0.8.1
       - executing==2.2.1
@@ -181,7 +181,6 @@ dependencies:
       - matplotlib==3.10.6
       - matplotlib-inline==0.1.7
       - mdurl==0.1.2
-      - mediapipe==0.10.21
       - mistune==3.1.4
       - ml-dtypes==0.5.3
       - mmengine==0.10.7
