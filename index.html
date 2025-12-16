@@ -125,41 +125,16 @@
                     </p>
                 </div>
             </div>
-
-            <!-- Image Comparison Sliders -->
-            <!-- <div class="comparison-grid">
-                <div class="comparison-item">
-                    <div class="img-comp-container" id="compare1">
-                        <div class="img-comp-img">
-                            <img src="https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?q=80&w=1600&auto=format&fit=crop"
-                                alt="CAMEO (Ours)">
-                            <div class="img-comp-badge cameo">CAMEO</div>
-                        </div>
-                        <div class="img-comp-img img-comp-overlay">
-                            <img src="https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?q=80&w=1600&auto=format&fit=crop&blur=50"
-                                style="filter: blur(4px) contrast(1.2);" alt="Baseline">
-                            <div class="img-comp-badge baseline">Baseline</div>
-                        </div>
-                    </div>
-                    <div class="comparison-label">Large Viewpoint Change</div>
-                </div>
-
-                <div class="comparison-item">
-                    <div class="img-comp-container" id="compare2">
-                        <div class="img-comp-img">
-                            <img src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?q=80&w=1600&auto=format&fit=crop"
-                                alt="CAMEO (Ours)">
-                            <div class="img-comp-badge cameo">CAMEO</div>
-                        </div>
-                        <div class="img-comp-img img-comp-overlay">
-                            <img src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?q=80&w=1600&auto=format&fit=crop"
-                                style="filter: hue-rotate(30deg) blur(2px);" alt="Baseline">
-                            <div class="img-comp-badge baseline">Baseline</div>
-                        </div>
-                    </div>
-                    <div class="comparison-label">Complex Geometry</div>
-                </div>
-            </div> -->
+            <div class="video-container" style="width: 100%; max-width: 1200px; margin: 2rem auto;">
+                <video controls autoplay loop muted playsinline preload="metadata"
+                    style="width: 100%; border-radius: 8px;">
+                    <!-- High Efficiency (Supported Browsers) -->
+                    <!-- <source src="assets/teaser_video.webm" type="video/webm; codecs=vp9,opus"> -->
+                    <!-- Fallback (All Browsers) -->
+                    <source src="assets/teaser_video.mp4" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
         </div>
     </section>
 
@@ -290,7 +265,12 @@
                 <button onclick="copyBibtex()" class="citation-copy-btn">
                     <i class="fa-regular fa-copy"></i> Copy
                 </button>
-                <pre class="citation-code"><code id="bibtex-text"></code></pre>
+                <pre class="citation-code"><code id="bibtex-text">@article{an2025c3g,
+  title={C3G: Learning Compact 3D Representations with 2K Gaussians},
+  author={An, Honggyu and Jung, Jaewoo and Kim, Mungyeom and Hong, Sunghwan and Kim, Chaehyun and Fukuda, Kazumi and Jeon, Minkyeong and Han, Jisang and Narihira, Takuya and Ko, Hyuna and others},
+  journal={arXiv preprint arXiv:2512.04021},
+  year={2025}
+}                </code></pre>
             </div>
         </div>
     </section>
