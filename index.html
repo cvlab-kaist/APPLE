@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compact 3D Representations with 2K Gaaussians</title>
+    <title>Attribute-Preserving Pseudo-Labeling for Diffusion-Based Face Swapping</title>
     <meta name="description"
-        content="Project page for C3G: Learning Compact 3D Representations with 2K Gaussians (arXiv 2025)">
+        content="Project page for APPLE: Attribute-Preserving Pseudo-Labeling for Diffusion-Based Face Swapping">
 
     <!-- Fonts and Icons -->
     <link rel="stylesheet"
@@ -16,21 +16,6 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="style.css">
 
-    <!-- MathJax -->
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-    <script>
-        window.MathJax = {
-            tex: {
-                inlineMath: [['$', '$'], ['\\(', '\\)']],
-                displayMath: [['$$','$$'], ['\\[','\\]']]
-            },
-            options: {
-                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
-            },
-            svg: { fontCache: 'global' }
-        };
-    </script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 
 <body>
@@ -41,17 +26,17 @@
             <div class="sidebar-dot"></div>
             <span class="sidebar-label">Overview</span>
         </a>
-        <a href="#previous-works" class="sidebar-item">
-            <div class="sidebar-dot"></div>
-            <span class="sidebar-label">Previous Works</span>
-        </a>
         <a href="#framework" class="sidebar-item">
             <div class="sidebar-dot"></div>
-            <span class="sidebar-label">Framework</span>
+            <span class="sidebar-label">Overall Framework</span>
         </a>
         <a href="#results" class="sidebar-item">
             <div class="sidebar-dot"></div>
             <span class="sidebar-label">Results</span>
+        </a>
+        <a href="#ablation" class="sidebar-item">
+            <div class="sidebar-dot"></div>
+            <span class="sidebar-label">Ablation</span>
         </a>
         <a href="#citation" class="sidebar-item">
             <div class="sidebar-dot"></div>
@@ -63,46 +48,38 @@
     <section id="overview" class="hero-section">
         <div class="hero-container">
             <h1 class="hero-title">
-                <span class="gradient-text">C3G</span>:
-                Learning Compact 3D Representations with 2K Gaussians
+                <span class="gradient-text">APPLE</span>:
+                Attribute-Preserving Pseudo-Labeling for Diffusion-Based Face Swapping
             </h1>
-            <p class="hero-status">arXiv 2025</p>
+            <p class="hero-status">arxiv 2026</p>
 
             <!-- Authors -->
             <div class="hero-authors">
-                <span><a href="https://hg010303.github.io/" target ="_blank">Honggyu An<sup>1*</sup></a></span>
-                <span><a href="https://crepejung00.github.io/" target ="_blank">Jaewoo Jung<sup>1*</sup></a></span>
-                <span><a href="" target="_blank" class="author-text">Mungyeom Kim<sup>1</sup></a></span>
-                <span><a href="https://sunghwanhong.github.io/" target ="_blank">Sunghwan Hong<sup>2</sup></a></span>
-                <span><a href="https://kchyun.github.io/" target ="_blank">Chaehyun Kim<sup>1</sup></a></span>
-                <span><a href="" target ="_blank">Kazumi Fukuda<sup>3</sup></a></span>
-                <span><a href="https://sites.google.com/view/minjeon/home" target ="_blank">Minkyeong Jeon<sup>1</sup></a></span>
-                <span><a href="https://onground-korea.github.io/" target ="_blank">Jisang Han<sup>1</sup></a></span>
-                <span><a href="" target ="_blank">Takuya Narihira<sup>3</sup></a></span>
-                <span><a href="" target ="_blank">Hyuna Ko<sup>1</sup></a></span>
-                <span><a href="" target ="_blank">Junsu Kim<sup>1</sup></a></span>
-                <span><a href="https://www.yukimitsufuji.com/" target ="_blank">Yuki Mitsufuji<sup>3,4†</sup></a></span>
-                <span><a href="https://cvlab.kaist.ac.kr/members/faculty" target ="_blank">Seungryong Kim<sup>1†</sup></a></span>                
+                <span>Jiwon Kang<sup>1</sup></span>
+                <span>Yeji Choi<sup>1</sup></span>
+                <span>JoungBin Lee<sup>1</sup></span>
+                <span>Wooseok Jang<sup>1</sup></span>
+                <span>Jinhyeok Choi<sup>1</sup></span> <br>
+                <span>Taekeun Kang<sup>2</sup></span>
+                <span>Yongjae Park<sup>2</sup></span>
+                <span>Myungin Kim<sup>2</sup></span>
+                <span>Seungryong Kim<sup>1</sup></span>
             </div>
 
             <div class="hero-affiliations">
                 <span><sup>1</sup>KAIST AI</span>
-                <span><sup>2</sup>ETH AI Center, ETH Zurich</span>
-                <span><sup>3</sup>SONY AI</span>
-                <span><sup>4</sup>Sony Group Corporation</span>
+                <span><sup>2</sup>SAMSUNG</span>
             </div>
-            <div class="hero-coauthor">
-                <span><sup>*</sup>Co-first authors</span>
-                <span><sup>†</sup>Co-corresponding authors</span>
-            </div>
+
+            <br>
 
             <!-- Link Buttons -->
             <div class="hero-buttons">
-                <a href="https://arxiv.org/abs/2512.04021" class="btn">
-                    <i class="fa-solid fa-file-pdf"></i> Paper
+                <a href="https://github.com/cvlab-kaist/APPLE" class="btn">
+                    <i class="fa-solid fa-link"></i> Paper
                 </a>
-                <a href="https://github.com/cvlab-kaist/C3G" class="btn btn-outline">
-                    <i class="fa-brands fa-github"></i> Code
+                <a href="https://github.com/cvlab-kaist/APPLE" class="btn btn-outline">
+                    <i class="fa-solid fa-file-zipper"></i> Code (Coming Soon)
                 </a>
                 <a href="#citation" class="btn btn-outline">
                     <i class="fa-solid fa-quote-right"></i> BibTeX
@@ -117,24 +94,23 @@
                 <div class="tldr-content">
                     <span class="tldr-label">TL;DR</span>
                     <p class="tldr-text">
-                        We propose a feed-forward framework for learning 
-                        <span class="tldr-highlight">compact 3D representations</span> from unposed images. 
-                        Our approach estimates only <span class="tldr-highlight">2K Gaussians</span> that allocated in meaningful regions 
-                        to enable generalizable scene reconstruction and understanding. 
-                        
+                        We propose a diffusion-based teacher-student framework for face swapping, where teacher generates high-quality pseudo data that are then used to train a student model, <b>significantly improving attribute preservation compared to existing diffusion-based methods </b> while maintaining strong identity transfer.
+</b>
                     </p>
                 </div>
             </div>
-            <div class="video-container" style="width: 100%; max-width: 1200px; margin: 2rem auto;">
-                <video controls autoplay loop muted playsinline preload="metadata"
-                    style="width: 100%; border-radius: 8px;">
-                    <!-- High Efficiency (Supported Browsers) -->
-                    <!-- <source src="assets/teaser_video.webm" type="video/webm; codecs=vp9,opus"> -->
-                    <!-- Fallback (All Browsers) -->
-                    <source src="assets/teaser_video.mp4" type="video/mp4">
-                    Your browser does not support the video tag.
-                </video>
+            <br>
+            <br>
+            <div class="analysis-image-container-teaser">
+                <picture>
+                    <source srcset="assets/new_paper_figures/teaser.webp" type="image/webp">
+                    <img src="assets/new_paper_figures/teaser.png"
+                        class="analysis-image" alt="Teaser">
+                </picture>
             </div>
+            <p class="results-caption" style="text-align: center; width: 70%; margin: 0 auto;">
+                <b>Teaser.</b> Our model, <b>APPLE</b> (<b>A</b>ttribute-<b>P</b>reserving <b>P</b>seudo-<b>L</b>ab<b>e</b>ling), produces high-fidelity outputs while accurately preserving target attributes (e.g. pose, expression, skin tone, lighting) across ethnicity, input variations, and gender.
+            </p>
         </div>
     </section>
 
@@ -142,100 +118,89 @@
     <section class="section alt-bg">
         <div class="container">
             <h2 class="section-title">Overview</h2>
-
-            <div>
-                <div class="analysis-image-container-teaser">
-                    <img src="assets/figure1_teaser.png"
-                        onerror="this.src='https://placehold.co/1200x300/e2e8f0/475569?text=Figure+3:+Attention+Maps'"
-                        class="analysis-image" alt="Emergence of Geometry in Layer 10">
-                </div>
-                <p>
-                    <Strong>Compact 3D scene Representations (C3G)</Strong> is a generalizable framework that uses only <strong>2K</strong> Gaussians to reconsruct and understand 3D scenes from unposed images. 
-                    By aggregating multi-view features to Gaussian queries, each Gaussian is positioned at essential spatial location by integrating relavant visual features, enabling efficitently feature lifting.  
-                </p>
-            </div>
+            <p style="text-align: left;">
+            Face swapping aims to transfer the identity from a source image to a target face while preserving attributes like pose, lighting, and makeup. However, existing diffusion-based methods, which often rely on inpainting, struggle to preserve these attributes faithfully because masking the face removes crucial visual cues.
+            </p>
+            <p style="text-align: left;">
+            To address this, we propose <b>APPLE</b>, a teacher-student framework that generates high-quality pseudo-labels(triplets) to provide explicit supervision.
+            </p>
+            <ul
+                style="list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1.5rem; margin-top: 1.5rem; color: var(--color-text-main); font-size: 1.2rem; line-height: 1.625; text-align: left;">
+                <li style="margin-bottom: 0.5rem;">
+                    A <b>teacher model</b> is trained to produce attribute-preserving results without ground-truth data by:
+                    <ul style="list-style-type: circle; margin-left: 1.5rem; margin-top: 0.5rem;">
+                        <li>Reformulating face swapping as a <b>conditional deblurring</b> task to retain low-frequency attributes. (e.g. skin tone, lighting)</li>
+                        <li>Introducing an <b>attribute-aware inversion</b> scheme to capture fine-grained details. (e.g. makeup, accessories)</li>
+                    </ul>
+                </li>
+                <li>
+                    A <b>student model</b> is then trained on these high-quality pseudo-labels(triplets) produced by teacher model, learning face swapping as a direct editing task to further enhance attribute preservation.
+                </li>
+            </ul>
         </div>
     </section>
 
 
+    <!-- Framework Section -->
+    <section id="framework" class="section">
 
-    <!-- Analysis Section -->
-    <section id="previous-works" class="section">
         <div class="container">
-            <h2 class="section-title">Comparison with Previous Works</h2>
-            <div>
-                <!-- <h3 class="analysis-subtitle">Emergence of Geometry in Layer 10</h3> -->
-
-                <div class="analysis-image-container">
-                    <img src="assets/figure2_comparison.png"
-                        onerror="this.src='https://placehold.co/1200x300/e2e8f0/475569?text=Figure+3:+Attention+Maps'"
-                        class="analysis-image" alt="Emergence of Geometry in Layer 10">
-                </div>
-
-                <ul
-                    style="list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1.5rem; margin-top: 1.5rem; color: var(--color-text-main); font-size: 1.2rem; line-height: 1.625;">
-                    <li style="margin-bottom: 0.5rem;">
-                        <strong>Previous per-pixel estimators:</strong> Predict one Gaussians per pixel, resulting <strong>redundant Gaussians</strong>, <strong>misalignment</strong> and <strong>depth error</strong>.
-                    </li>
-                    <li>
-                        <strong>C3G:</strong> Predicts only compact Gaussians at essential locations while avoiding <strong>redundancy</strong>, <strong>misalignment</strong>, and <strong>depth error</strong>, resulting superior 3D scene understanding and novel view synthesis performance. 
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </section>
-
-    <!-- CAMEO Section -->
-    <section id="framework" class="section alt-bg">
-        <div class="container">
-            <h2 class="section-title">Our Gaussian Decoder: C3G-$\mathcal{G}$</h2>
-
-            <div class="cameo-description">
-                <div>
-                    We introduce <strong>learnable queries</strong> that aggregates multi-view features through self-attention to guide Gaussian generation, enabling Gaussians to be positioned at essential spatial locations with only RGB supervision.
-                </div>
-            </div>
+            <h2 class="section-title">Overall Framework</h2>
 
             <div class="analysis-image-container">
-                <img src="assets/figure3_c3g_g.png" alt="CAMEO Method Overview" class="analysis-image">
+                 <picture>
+                    <source srcset="assets/new_paper_figures/framework.webp" type="image/webp">
+                    <img src="assets/new_paper_figures/framework.png" alt="Framework Overview" class="analysis-image">
+                </picture>
             </div>
 
-            <div class="results-caption">
+            <div class="results-caption" style="text-align: left;">
                 <p>
-                    (a) Our framework decodes compact 3D Gaussians by processing multi-view features through transformer-based learnable queries.<br>
-                    (b) Visualization of learned attention between a target Gaussian (<span style="color:red;">red</span> dots) and features. Query tokens attend to spatially coherent regions across views, naturally discovering correspondences.
+                    <b>Overall architecture of the proposed method.</b> We propose <b>APPLE</b>, a diffusion-based teacher-student framework that focuses on improving attribute-preservation. (a) To improve target-attribute preservation, we propose training a teacher with <i>conditional deblurring</i> rather than conditional inpainting widely used in existing works. (b) When constructing pseudo-triplet, we propose <i>attribute-aware inversion</i> which further improves attribute preservation in inference time. Note that inversion noise cannot be used during training due to its non-Gaussian property. (c) Student is trained with pseudo-triplet generated by teacher model. Thanks to pseudo-supervision, student even surpass the teacher, achieving state-of-the-art attribute preservation while maintaining high identity similarity.
                 </p>
             </div>
-
         </div>
     </section>
 
-    <section id="framework" class="section">
+    <!-- New Section 1 -->
+    <section  class="section alt-bg">
         <div class="container">
-            <h2 class="section-title">Our Feature Decoder: C3G-$\mathcal{F}$</h2>
-
-            <div class="two-column">
-                <div class="left cameo-description">
-                    <p>
-                        We leverage the <strong>learned attention</strong> from Gaussian decoder C3G-$\mathcal{G}$ to efficiently train a view-invariant feature decoder C3G-$\mathcal{F}$.
-                        We use the same architecture as C3G-$\mathcal{G}$ but share the <strong>attention weights</strong> to efficiently aggregate multi-view features for feature decoding.
-                    </p>
-
-                    <p>
-                        With this training procedure, we can easily lift any 2D features by <strong>learning only value projection layers</strong>, enabling efficient training.
-                    </p>
-                </div>
-
-                <div class="right analysis-image-container">
-                    <img src="assets/figure4_c3g_f.png" alt="CAMEO Method Overview" class="analysis-image">
-                </div>
+            <h2 class="section-title">Comparison of conditioning methods : Inpainting vs Deblurring</h2>
+            <div class="analysis-image-container">
+                 <picture>
+                    <source srcset="assets/new_paper_figures/condition2.webp" type="image/webp">
+                    <img src="assets/new_paper_figures/condition2.png" alt="Comparison of conditioning methods" class="analysis-image">
+                </picture>
             </div>
+            <div class="results-caption" style="text-align: left;">
+                <p>
+                    Compared to conditional inpainting widely used in existing works, proposed conditional deblurring strategy achieves largely improved attribute (e.g. pose, lighting) preservation of targets.
+                </p>
+            </div>
+        </div>
+    </section>
 
+    
+    <!-- New Section 2 -->
+    <section class="section">
+        <div class="container">
+            <h2 class="section-title">Comparison of conditioning configuration for inversion</h2>
+            <div class="analysis-image-container">
+                 <picture>
+                    <source srcset="assets/new_paper_figures/inversion_noise_vis.webp" type="image/webp">
+                    <img src="assets/new_paper_figures/inversion_noise_vis.png" alt="Comparison of conditioning configuration for inversion" class="analysis-image">
+                </picture>
+            </div>
+            <div class="results-caption" style="text-align: left;">
+                <p>
+                    (Top) Visualization of target-inverted noise and random gaussian noise via PCA. When attribute-condition is used, inverted noise encodes more semantic information compared to the others. (Bottom) Results of face swapping when each inverted noise used. Using attribute-only conditioned noise (<strong>attribute-aware inversion</strong>) yields most make-up preserved results without introducing artifacts.
+                </p>
+            </div>
         </div>
     </section>
 
     <!-- Results Section -->
-    <section id="results" class="section">
+    <section id="results" class="section alt-bg">
         <div class="container">
 
             <!-- 1. Quantitative Results -->
@@ -257,6 +222,23 @@
         </div>
     </section>
 
+    <section id="ablation" class="section">
+        <div class="container">
+            <h2 class="section-title">Ablation Study</h2>
+            <div class="analysis-image-container">
+                <picture>
+                    <source srcset="assets/new_paper_figures/ablation_qual.webp" type="image/webp">
+                    <img src="assets/new_paper_figures/ablation_qual.png" class="analysis-image" alt="Ablation Study">
+                </picture>
+            </div>
+            <div class="results-caption" style="text-align: left;">
+                <p>
+                    The inpainting method fails to preserve the target image’s attributes. Applying deblurring (4th column) and attribute-aware inversion (5th column) progressively better maintain the target attributes. Overall quality including attribute-preserving is maximized on student (6th column).
+                </p>
+            </div>
+        </div>
+    </section>
+
     <!-- Citation Section -->
     <section id="citation" class="citation-section">
         <div class="container">
@@ -265,12 +247,12 @@
                 <button onclick="copyBibtex()" class="citation-copy-btn">
                     <i class="fa-regular fa-copy"></i> Copy
                 </button>
-                <pre class="citation-code"><code id="bibtex-text">@article{an2025c3g,
-  title={C3G: Learning Compact 3D Representations with 2K Gaussians},
-  author={An, Honggyu and Jung, Jaewoo and Kim, Mungyeom and Hong, Sunghwan and Kim, Chaehyun and Fukuda, Kazumi and Jeon, Minkyeong and Han, Jisang and Narihira, Takuya and Ko, Hyuna and others},
-  journal={arXiv preprint arXiv:2512.04021},
-  year={2025}
-}                </code></pre>
+                <pre class="citation-code"><code id="bibtex-text">@article{kang2026apple,
+  title={Attribute-Preserving Pseudo-Labeling for Diffusion-Based Face Swapping},
+  author={Kang, Jiwon and Choi, Yeji and Lee, JoungBin and Jang, Wooseok and Choi, Jinhyeok and Kang, Taekeun and Park, Yongjae and Kim, Myungin and Kim, Seungryong},
+  journal={arXiv preprint},
+  year={2026}
+}</code></pre>
             </div>
         </div>
     </section>
@@ -278,7 +260,7 @@
     <!-- Footer -->
     <footer class="footer">
         <div class="container">
-            <p>C3G : Learning Compact 3D Representations with 2K Gaussians</p>
+            <p>APPLE : Attribute-Preserving Pseudo-Labeling for Diffusion-Based Face Swapping</p>
         </div>
     </footer>
 
@@ -293,11 +275,8 @@
                 this.totalSlides = data.length;
 
                 this.init();
-
-                // Handle resize
+                
                 window.addEventListener('resize', () => this.updateHeight());
-
-                // Handle image load for height update
                 this.container.addEventListener('load', () => this.updateHeight(), true);
             }
 
@@ -305,25 +284,13 @@
                 this.container.innerHTML = `
                     <div class="carousel-viewport">
                         <div class="carousel-track">
-                            ${this.data.map(item => `
-                                <div class="carousel-slide">
-                                    ${this.renderItem(item)}
-                                </div>
-                            `).join('')}
+                            ${this.data.map(item => `<div class="carousel-slide">${this.renderItem(item)}</div>`).join('')}
                         </div>
                     </div>
-                    
-                    <button class="carousel-nav-btn prev">
-                        <i class="fa-solid fa-chevron-left"></i>
-                    </button>
-                    <button class="carousel-nav-btn next">
-                        <i class="fa-solid fa-chevron-right"></i>
-                    </button>
-
+                    <button class="carousel-nav-btn prev"><i class="fa-solid fa-chevron-left"></i></button>
+                    <button class="carousel-nav-btn next"><i class="fa-solid fa-chevron-right"></i></button>
                     <div class="carousel-dots">
-                        ${this.data.map((_, i) => `
-                            <button class="carousel-dot ${i === 0 ? 'active' : ''}" data-index="${i}"></button>
-                        `).join('')}
+                        ${this.data.map((_, i) => `<button class="carousel-dot ${i === 0 ? 'active' : ''}" data-index="${i}"></button>`).join('')}
                     </div>
                 `;
 
@@ -333,6 +300,7 @@
                 this.container.querySelector('.carousel-nav-btn.prev').onclick = () => this.move(-1);
                 this.container.querySelector('.carousel-nav-btn.next').onclick = () => this.move(1);
                 this.dots.forEach((dot, i) => dot.onclick = () => this.goTo(i));
+                this.update();
             }
 
             move(direction) {
@@ -351,19 +319,8 @@
                     dot.className = `carousel-dot ${i === this.currentIndex ? 'active' : ''}`;
                 });
                 this.updateHeight();
-                // Re-typeset MathJax for the newly-visible slide in case it contains inline math
-                if (window.MathJax) {
-                    const ready = (MathJax.startup && MathJax.startup.promise) ? MathJax.startup.promise : Promise.resolve();
-                    ready.then(() => {
-                        if (typeof MathJax.typesetPromise === 'function') {
-                            MathJax.typesetPromise().catch(err => console.error('MathJax typeset failed:', err));
-                        } else if (typeof MathJax.typeset === 'function') {
-                            try { MathJax.typeset(); } catch (e) { console.error('MathJax typeset error:', e); }
-                        }
-                    }).catch(err => console.error('MathJax startup failed:', err));
-                }
             }
-
+            
             updateHeight() {
                 const slides = this.container.querySelectorAll('.carousel-slide');
                 if (slides[this.currentIndex]) {
@@ -373,360 +330,157 @@
             }
         }
 
-        // Data & Render Logic
         const quantitativeData = [
             {
-                title: "RealEstate10K — Novel view synthesis",
-                desc: "Comparison of novel view synthesis with multi-view input images on RealEstate10K. <br> TTO: Short test-time optimization of Gaussian parameters.",
+                title: "Quantitative Results on FFHQ",
+                desc: "<b>APPLE</b> achieves the best FID and superior attribute preservation, as evidenced by low pose and expression errors, while maintaining competitive identity transferability.",
                 table: `
-                    <table class="quant-table" role="table">
+                    <table class="quant-table" role="role">
                         <thead>
                             <tr>
-                                <th rowspan="2">Methods</th>
-                                <th colspan="4">12 view</th>
-                                <th colspan="4">24 view</th>
-                                <th colspan="4">36 view</th>
-                            </tr>
-                            <tr>
-                                <th>PSNR↑</th><th>SSIM↑</th><th>LPIPS↓</th><th>#G↓</th>
-                                <th>PSNR↑</th><th>SSIM↑</th><th>LPIPS↓</th><th>#G↓</th>
-                                <th>PSNR↑</th><th>SSIM↑</th><th>LPIPS↓</th><th>#G↓</th>
+                                <th>Model</th>
+                                <th>FID↓</th><th>ID Sim.↑</th><th>ID Retrieval↑<br>(Top1 / Top5)</th><th>Pose↓</th><th>Expr.↓</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td>AnySplat</td>
-                                <td>23.057</td><td>0.807</td><td>0.215</td><td>1,500K</td>
-                                <td>24.105</td><td>0.838</td><td>0.198</td><td>2,636K</td>
-                                <td>24.196</td><td>0.842</td><td>0.192</td><td>3,309K</td>
-                            </tr>
-                            <tr>
-                                <td>AnySplat w/  TTO</td>
-                                <td>26.726</td><td>0.881</td><td>0.189</td><td>1,500K</td>
-                                <td>27.471</td><td>0.898</td><td>0.180</td><td>2,636K</td>
-                                <td>27.412</td><td>0.899</td><td>0.181</td><td>3,309K</td>
-                            </tr>
-                            <tr>
-                                <td>VGGT+NoPo</td>
-                                <td>21.262</td><td>0.667</td><td>0.200</td><td>602K</td>
-                                <td>21.244</td><td>0.664</td><td>0.200</td><td>1,204K</td>
-                                <td>21.190</td><td>0.663</td><td>0.200</td><td>1,806K</td>
-                            </tr>
-                            <tr>
-                                <td>VGGT+NoPo w/  TTO</td>
-                                <td>28.540</td><td><span class="quant-max">0.898</span></td><td><span class="quant-max">0.131</span></td><td>602K</td>
-                                <td>28.463</td><td>0.902</td><td><span class="quant-max">0.135</span></td><td>1,204K</td>
-                                <td>28.100</td><td>0.898</td><td>0.145</td><td>1,806K</td>
-                            </tr>
-                            <tr>
-                                <td>Ours</td>
-                                <td>23.612</td><td>0.740</td><td>0.203</td><td><span class="quant-max">2K</span></td>
-                                <td>23.797</td><td>0.747</td><td>0.198</td><td><span class="quant-max">2K</span></td>
-                                <td>23.812</td><td>0.747</td><td>0.199</td><td><span class="quant-max">2K</span></td>
-                            </tr>
-                            <tr>
-                                <td>Ours w/  TTO</td>
-                                <td><span class="quant-max">28.552</span></td><td>0.890</td><td>0.155</td><td>28K</td>
-                                <td><span class="quant-max">29.987</span></td><td><span class="quant-max">0.916</span></td><td>0.136</td><td>27K</td>
-                                <td><span class="quant-max">30.250</span></td><td><span class="quant-max">0.921</span></td><td><span class="quant-max">0.133</span></td><td>26K</td>
-                            </tr>
+                            <tr><td colspan="6" style="text-align: center;"><b>GAN-Based</b></td></tr>
+                            <tr><td>SimSwap</td><td>18.54</td><td>0.55</td><td>94.10 / 99.00</td><td>3.11</td><td>1.73</td></tr>
+                            <tr><td>CSCS</td><td>11.00</td><td>0.65</td><td>99.00 / 99.50</td><td>3.64</td><td>1.44</td></tr>
+                            <tr><td>MegaFS</td><td>12.83</td><td>0.49</td><td>79.6 / 86.3</td><td>4.40</td><td>1.11</td></tr>
+                            <tr><td>FaceDancer</td><td>3.80</td><td>0.51</td><td>89.70 / 96.50</td><td>2.23</td><td>0.74</td></tr>
+                            <tr><td>HiFiFace</td><td>11.81</td><td>0.50</td><td>85.40 / 93.40</td><td>3.20</td><td>1.34</td></tr>
+                            <tr><td>InfoSwap</td><td>5.00</td><td>0.54</td><td>91.40 / 97.50</td><td>4.33</td><td>1.40</td></tr>
+                            <tr><td>E4S</td><td>12.13</td><td>0.49</td><td>78.30 / 87.80</td><td>4.39</td><td>1.29</td></tr>
+                            <tr><td colspan="6" style="border: none; height: 10px;"></td></tr>
+                            <tr><td colspan="6" style="text-align: center;"><b>Diffusion-Based</b></td></tr>
+                            <tr><td>DiffSwap</td><td>6.84</td><td>0.34</td><td>41.92 / 63.09</td><td>2.63</td><td>1.20</td></tr>
+                            <tr><td>DiffFace</td><td>8.59</td><td>0.54</td><td>90.70 / 95.90</td><td>3.67</td><td>1.24</td></tr>
+                            <tr><td>FaceAdapter</td><td>13.03</td><td>0.52</td><td>87.00 / 93.20</td><td>5.12</td><td>1.38</td></tr>
+                            <tr><td>REFace</td><td>7.22</td><td>0.60</td><td>97.60 / 99.40</td><td>3.67</td><td>1.08</td></tr>
+                            <tr><td colspan="6" style="border: none; height: 10px;"></td></tr>
+                            <tr><td><b>APPLE (Teacher)</b></td><td>3.68</td><td>0.54</td><td>90.40 / 96.70</td><td>2.07</td><td>0.70</td></tr>
+                            <tr><td><b>APPLE (Student)</b></td><td><b>2.18</b></td><td>0.54</td><td>90.50 / 97.00</td><td><b>1.85</b></td><td><b>0.64</b></td></tr>
                         </tbody>
                     </table>
                 `
             },
             {
-                title: "ScanNet — 3D scene understanding",
-                desc: "Comparison of 3D scene understanding on ScanNet.<br> *: Features directly extracted from target view images.",
+                title: "Ablation of Teacher Model",
+                desc: "Applying the proposed components sequentially leads to gradual performance improvements. In particular, the attribute-aware inversion module substantially improves FID, pose, and expression metrics while maintaining identity similarity at a comparable level.",
                 table: `
-                    <table class="quant-table" role="table">
+                     <table class="quant-table" role="role">
                         <thead>
                             <tr>
-                                <th rowspan="2">Methods</th>
-                                <th rowspan="2">Feed Forward</th>
-                                <th rowspan="2">Input Pose</th>
-                                <th colspan="5">LSeg</th>
-                                <th colspan="5">MaskCLIP</th>
-                                <th rowspan="2">#G↓</th>
-                                <th rowspan="2">Memories↓</th>
-                            </tr>
-                            <tr>
-                                <th>mIoU↑</th><th>Acc↑</th><th>PSNR↑</th><th>SSIM↑</th><th>LPIPS↓</th>
-                                <th>mIoU↑</th><th>Acc↑</th><th>PSNR↑</th><th>SSIM↑</th><th>LPIPS↓</th>
+                                <th>Model</th>
+                                <th>FID↓</th><th>ID Sim.↑</th><th>ID Retrieval (Top1 / Top5)↑</th><th>Pose↓</th><th>Expr.↓</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td>LSeg / MaskCLIP*</td>
-                                <td>✗</td>
-                                <td>-</td>
-                                <td>0.506</td><td>0.797</td>
-                                <td>-</td><td>-</td><td>-</td><td>0.341</td>
-                                <td>0.667</td><td>-</td><td>-</td><td>-</td>
-                                <td> - </td>
-                                <td> - </td>
-                            </tr>
-                            <tr>
-                                <td>Feature-3DGS</td>
-                                <td>✗</td>
-                                <td>✓</td>
-                                <td>0.379</td><td>0.644</td>
-                                <td>19.83</td><td>0.684</td><td>0.357</td><td>0.353</td>
-                                <td>0.663</td><td>17.47</td><td>0.612</td><td>0.420</td>
-                                <td>1,185K</td>
-                                <td>845.2MB</td>
-                            </tr>
-                            <tr>
-                                <td>CF3</td>
-                                <td>✗</td>
-                                <td>✓</td>
-                                <td>0.376</td><td>0.657</td>
-                                <td>20.04</td><td>0.691</td><td>0.359</td><td>0.336</td>
-                                <td>0.634</td><td>20.14</td><td>0.695</td><td>0.354</td>
-                                <td>53K</td>
-                                <td>38.4MB</td>
-                            </tr>
-                            <tr>
-                                <td>LSM</td>
-                                <td>✓</td>
-                                <td>✗</td>
-                                <td>0.503</td><td class="quant-max">0.793</td>
-                                <td>23.32</td><td>0.767</td><td class='quant-max'>0.250</td><td>0.286</td>
-                                <td>0.505</td><td>22.87</td><td>0.737</td><td class='quant-max'>0.286</td>
-                                <td>131K</td>
-                                <td>61.5MB</td>
-                            </tr>
-                            <tr>
-                                <td>C3G (Ours)</td>
-                                <td>✓</td>
-                                <td>✓</td>
-                                <td class="quant-max">0.513</td><td>0.783</td>
-                                <td class="quant-max">23.89</td><td class="quant-max">0.770</td><td>0.285</td><td class="quant-max">0.361</td>
-                                <td class="quant-max">0.675</td><td class="quant-max">23.75</td><td class="quant-max">0.763</td><td class>0.290</td>
-                                <td class="quant-max">2K</td>
-                                <td class="quant-max">4.1MB</td>
-                            </tr>
+                            <tr><td>Inpainting (Baseline)</td><td>11.00</td><td>0.54</td><td>92.80 / 96.90</td><td>3.37</td><td>1.01</td></tr>
+                            <tr><td>Deblurring</td><td>4.20</td><td>0.53</td><td>89.50 / 96.20</td><td>2.58</td><td>0.79</td></tr>
+                            <tr><td><b>Deblurring + Inv.</b></td><td><b>3.68</b></td><td>0.54</td><td>90.40 / 96.70</td><td><b>2.07</b></td><td><b>0.70</b></td></tr>
                         </tbody>
                     </table>
                 `
             },
             {
-                title: "Replica — 3D scene understanding",
-                desc: "Comparison of 3D scene understanding on Replica. <br> *: Features directly extracted from target view images.",
+                title: "Ablation of Conditioning Configurations for Inversion",
+                desc: "For inversion, using attribute-only condition improves FID, pose and expression effectively while not sacrificing identity transferability.",
                 table: `
-                    <table class="quant-table" role="table">
+                     <table class="quant-table" role="role">
                         <thead>
                             <tr>
-                                <th rowspan="2">Methods</th>
-                                <th rowspan="2">Feed Forward</th>
-                                <th rowspan="2">Input Pose</th>
-                                <th colspan="5">LSeg</th>
-                                <th colspan="5">MaskCLIP</th>
-                                <th rowspan="2">#G↓</th>
-                                <th rowspan="2">Memories↓</th>
-                            </tr>
-                            <tr>
-                                <th>mIoU↑</th><th>Acc↑</th><th>PSNR↑</th><th>SSIM↑</th><th>LPIPS↓</th>
-                                <th>mIoU↑</th><th>Acc↑</th><th>PSNR↑</th><th>SSIM↑</th><th>LPIPS↓</th>
+                                <th>Condition config.</th>
+                                <th>FID↓</th><th>ID Sim.↑</th><th>ID Retrieval (Top1 / Top5)↑</th><th>Pose↓</th><th>Expr.↓</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td>LSeg / MaskCLIP*</td>
-                                <td>✗</td>
-                                <td>-</td>
-                                <td>0.618</td>
-                                <td>0.887</td>
-                                <td>-</td><td>-</td><td>-</td>
-                                <td>0.412</td><td>0.668</td><td>-</td><td>-</td><td>-</td>
-                                <td>-</td>
-                                <td>-</td>
-                            </tr>
-                            <tr>
-                                <td>Feature-3DGS</td>
-                                <td>✗</td>
-                                <td>✓</td>
-                                <td>0.730</td>
-                                <td>0.936</td>
-                                <td>35.70</td><td>0.972</td><td>0.044</td><td>0.421</td>
-                                <td>0.686</td><td>35.90</td><td>0.972</td><td>0.045</td>
-                                <td>199K</td>
-                                <td>141.8MB</td>
-                            </tr>
-                            <tr>
-                                <td>CF3</td>
-                                <td>✗</td>
-                                <td>✓</td>
-                                <td>0.663</td>
-                                <td>0.918</td>
-                                <td>27.49</td><td>0.906</td><td>0.132</td><td>0.380</td>
-                                <td>0.654</td><td>27.49</td><td>0.906</td><td>0.132</td>
-                                <td>10K</td>
-                                <td>7.1MB</td>
-                            </tr>
-                            <tr>
-                                <td>LSM</td>
-                                <td>✓</td>
-                                <td>✗</td>
-                                <td>0.600</td>
-                                <td>0.823</td>
-                                <td>21.86</td><td>0.753</td><td>0.213</td><td>0.241</td>
-                                <td>0.411</td><td>17.01</td><td>0.637</td><td>0.377</td>
-                                <td>131K</td>
-                                <td>61.5MB</td>
-                            </tr>
-                            <tr>
-                                <td>C3G (Ours)</td>
-                                <td>✓</td>
-                                <td>✓</td>
-                                <td class="quant-max">0.630</td>
-                                <td class="quant-max">0.893</td>
-                                <td class="quant-max">25.43</td><td class="quant-max">0.818</td><td class="quant-max">0.173</td><td class="quant-max">0.241</td>
-                                <td class="quant-max">0.630</td><td class="quant-max">25.43</td><td class="quant-max">0.818</td><td class="quant-max">0.173</td>
-                                <td class="quant-max">2K</td>
-                                <td class="quant-max">4.1MB</td>
-                            </tr>
+                            <tr><td>Baseline</td><td>4.20</td><td>0.53</td><td>89.50 / 96.20</td><td>2.58</td><td>0.79</td></tr>
+                            <tr><td colspan="6" style="border: none; height: 10px;"></td></tr>
+                            <tr><td>+ None</td><td>6.20</td><td>0.52</td><td>87.90 / 95.80</td><td><b>2.03</b></td><td>0.74</td></tr>
+                            <tr><td>+ Identity-only</td><td>10.02</td><td>0.53</td><td>90.50 / 95.90</td><td>2.57</td><td>0.83</td></tr>
+                            <tr><td><b>+ Attribute-only</b></td><td><b>3.68</b></td><td>0.54</td><td>90.40 / 96.70</td><td>2.07</td><td><b>0.70</b></td></tr>
+                            <tr><td>+ Full</td><td>10.51</td><td>0.53</td><td>89.10 / 93.80</td><td>3.13</td><td>0.99</td></tr>
                         </tbody>
                     </table>
                 `
             },
             {
-                    title: "ScanNet — Multi-view Correspondence",
-                    desc: "PCK@10px correspondence estimation across different angle pairs on ScanNet.",
-                    table: `
-                        <table class="quant-table" role="table">
-                            <thead>
-                                <tr>
-                                    <th>Methods</th>
-                                    <th>\\(\\theta^{15}_{0}\\)</th>
-                                    <th>\\(\\theta^{30}_{15}\\)</th>
-                                    <th>\\(\\theta^{60}_{30}\\)</th>
-                                    <th>\\(\\theta^{180}_{60}\\)</th>
-                                    <th>Avg.</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>VGGT-Tracking</td>
-                                    <td>53.6</td><td>45.5</td><td>27.6</td><td>9.3</td><td>34.0</td>
-                                </tr>
-                                <tr>
-                                    <td>VGGT-Tracking + AnyUp</td>
-                                    <td>58.7</td><td>50.4</td><td>35.7</td><td>11.8</td><td>39.2</td>
-                                </tr>
-                                <tr>
-                                    <td>VGGT-Tracking + C3G (Ours)</td>
-                                    <td><span class="quant-max">93.5</span></td><td><span class="quant-max">88.1</span></td><td><span class="quant-max">70.4</span></td><td><span class="quant-max">20.3</span></td><td><span class="quant-max">68.1</span></td>
-                                </tr>
-
-                                <tr><td colspan="6" style="height:6px"></td></tr>
-
-                                <tr>
-                                    <td>DINOv2-Base</td>
-                                    <td>36.9</td><td>29.2</td><td>19.3</td><td>9.9</td><td>23.8</td>
-                                </tr>
-                                <tr>
-                                    <td>DINOv2-Base + FiT3D</td>
-                                    <td>40.9</td><td>32.1</td><td>22.0</td><td>13.9</td><td>27.2</td>
-                                </tr>
-                                <tr>
-                                    <td>DINOv2-Base + AnyUp </td>
-                                    <td>36.2</td><td>28.6</td><td>19.7</td><td>10.9</td><td>23.9</td>
-                                </tr>
-                                <tr>
-                                    <td>DINOv2-Base + C3G (Ours)</td>
-                                    <td><span class="quant-max">92.9</span></td><td><span class="quant-max">88.4</span></td><td><span class="quant-max">70.5</span></td><td><span class="quant-max">22.2</span></td><td><span class="quant-max">68.5</span></td>
-                                </tr>
-
-                                <tr><td colspan="6" style="height:6px"></td></tr>
-
-                                <tr>
-                                    <td>DINOv2-Large</td>
-                                    <td>36.6</td><td>24.0</td><td>19.0</td><td>12.7</td><td>23.1</td>
-                                </tr>
-                                <tr>
-                                    <td>DINOv2-Large + AnyUp</td>
-                                    <td>39.4</td><td>25.5</td><td>19.1</td><td>14.0</td><td>24.5</td>
-                                </tr>
-                                <tr>
-                                    <td>DINOv2-Large + C3G (Ours)</td>
-                                    <td><span class="quant-max">94.2</span></td><td><span class="quant-max">89.0</span></td><td><span class="quant-max">70.5</span></td><td><span class="quant-max">21.0</span></td><td><span class="quant-max">68.7</span></td>
-                                </tr>
-
-                                <tr><td colspan="6" style="height:6px"></td></tr>
-
-                                <tr>
-                                    <td>DINOv3-Large</td>
-                                    <td>54.9</td><td>44.3</td><td>32.1</td><td>19.3</td><td>37.7</td>
-                                </tr>
-                                <tr>
-                                    <td>DINOv3-Large + AnyUp</td>
-                                    <td>48.4</td><td>34.8</td><td>27.1</td><td>16.8</td><td>31.8</td>
-                                </tr>
-                                <tr>
-                                    <td>DINOv3-Large + C3G (Ours)</td>
-                                    <td><span class="quant-max">94.2</span></td><td><span class="quant-max">89.1</span></td><td><span class="quant-max">70.8</span></td><td><span class="quant-max">20.9</span></td><td><span class="quant-max">68.8</span></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    `
-                },
-
+                title: "Ablation of Pseudo-label Quality",
+                desc: "To compare the quality of pseudo-labels produced by APPLE(Teacher), we compare the performance of student model trained by pseudo-labels constructed by FaceDancer and APPLE(Teacher). The student model trained on our pseudo-triplet achieves superior attribute-preserving results indicated by lower pose and expression consistency, while maintaining comparable identity similarity. Results indicate that our teacher model serves as a more effective teacher.",
+                table: `
+                     <table class="quant-table" role="role">
+                        <thead>
+                            <tr>
+                                <th>Teacher model</th>
+                                <th>FID↓</th><th>ID Sim.↑</th><th>ID Retrieval (Top1 / Top5)↑</th><th>Pose↓</th><th>Expr.↓</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>FaceDancer</td><td>2.47</td><td>0.53</td><td>87.50 / 95.60</td><td>2.07</td><td>0.65</td></tr>
+                            <tr><td><b>APPLE (Teacher)</b></td><td><b>1.98</b></td><td>0.53</td><td>88.60 / 95.80</td><td><b>1.77</b></td><td><b>0.62</b></td></tr>
+                        </tbody>
+                    </table>
+                `
+            }
         ];
 
         const qualitativeData = [
             {
-                title: "RealEstate10K - Novel view synthesis",
-                desc: "Novel view synthesis results on RealEstate10K dataset when multi-view images available.",
-                image: "./assets/nvs_main.png"
+                title: "Qualitative Comparison on FFHQ",
+                desc: "Compared to existing baselines, <b>APPLE</b> effectively preserves the target image’s attributes while faithfully transferring the source identity.",
+                image: "assets/new_paper_figures/main_qual.png",
+                webp_image: "assets/new_paper_figures/main_qual.webp"
+            },
+            /*
+            {
+                title: "Pseudo-label Quality Comparison",
+                desc: "We compare two student models trained on pseudo-triplet generated by FaceDancer and APPLE (Teacher). Results demonstrate that student trained by APPLE (Teacher) more faithfully preserves the target attributes.",
+                image: "assets/new_paper_figures/dataset_ablation.png",
+                webp_image: "assets/new_paper_figures/dataset_ablation.webp"
+            },
+            */
+            {
+                title: "Qualitative Results on FFHQ (Appendix)",
+                desc: "Additional qualitative results on FFHQ.",
+                image: "assets/new_paper_figures/supple_qual_1.png",
+                webp_image: "assets/new_paper_figures/supple_qual_1.webp"
             },
             {
-                title: "ScanNet - 3D Scene Understanding",
-                desc: "Open-vocabulary semantic segmentation and novel view synthesis results on ScanNet dataset.",
-                image: "./assets/3d_understanding_main.png"
+                title: "Qualitative Results on FFHQ (Appendix)",
+                desc: "Additional qualitative results on FFHQ.",
+                image: "assets/new_paper_figures/supple_qual_2.png",
+                webp_image: "assets/new_paper_figures/supple_qual_2.webp"
             },
             {
-                title: "ScanNet - multi-view Correspondence",
-                desc: "Multi-view correspondence estimation with DINOv3-Large and DINOv3-Large + Ours on ScanNet dataset.",
-                image: "./assets/corr_viz_page.png"
+                title: "Qualitative Results on FFHQ (Appendix)",
+                desc: "Additional qualitative results on FFHQ.",
+                image: "assets/new_paper_figures/supple_qual_3.png",
+                webp_image: "assets/new_paper_figures/supple_qual_3.webp"
             },
             {
-                title: "ScanNet - multi-view Feature upsampling",
-                desc: "Multi-view feature upsampling results of VGGT-Tracking on ScanNet dataset.",
-                image: "./assets/matching_page.png"
+                title: "Qualitative Results on FFHQ (Appendix)",
+                desc: "Additional qualitative results on FFHQ.",
+                image: "assets/new_paper_figures/supple_qual_4.png",
+                webp_image: "assets/new_paper_figures/supple_qual_4.webp"
             }
         ];
 
 
         // Render Functions
         function renderQuantitative(item) {
-                    if (item.table) {
-                        return `
-                        <div class="results-slide-content">
-                            <h3 class="results-slide-title">${item.title}</h3>
-                            <div class="analysis-image-container" style="padding: 0 20px; background: transparent; border: none;">
-                                <div class="quant-table-wrapper">
-                                    ${item.table}
-                                </div>
-                            </div>
-                            <div class="results-caption">
-                                <p>${item.desc || ''}</p>
-                            </div>
+            return `
+                <div class="results-slide-content">
+                    <h3 class="results-slide-title">${item.title}</h3>
+                    <div class="analysis-image-container" style="padding: 0 20px; background: transparent; border: none;">
+                        <div class="quant-table-wrapper">
+                            ${item.table}
                         </div>
-                        `;
-                    }
-
-                    return `
-                        <div class="results-slide-content">
-                            <h3 class="results-slide-title">${item.title}</h3>
-                            <div class="analysis-image-container" style="padding: 0 20px;">
-                                <img src="${item.image}" style="width: 100%; height: auto;" alt="${item.title}">
-                            </div>
-                    
-                            <div class="results-caption">
-                                <p>${item.desc}</p>
-                            </div>
-                        </div>
-                    `;
+                    </div>
+                    <div class="results-caption">
+                        <p>${item.desc || ''}</p>
+                    </div>
+                </div>`;
         }
 
         function renderImageCard(item) {
@@ -734,139 +488,29 @@
                 <div class="results-slide-content">
                     <h3 class="results-slide-title">${item.title}</h3>
                     <div class="analysis-image-container">
-                        <img src="${item.image}" class="analysis-image" alt="${item.title}">
+                        <picture>
+                            <source srcset="${item.webp_image}" type="image/webp">
+                            <img src="${item.image}" class="analysis-image" alt="${item.title}">
+                        </picture>
                     </div>
-                    <div class="results-caption">
+                    <div class="results-caption" style="text-align: left;">
                         <p>${item.desc}</p>
                     </div>
-                </div>
-            `;
+                </div>`;
         }
-
-
-        // Chart Generation
-
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            new Carousel('carousel-quan', quantitativeData, renderQuantitative);
-            new Carousel('carousel-qual', qualitativeData, renderImageCard);
-            new Carousel('carousel-abl', ablationData, renderImageCard);
-            initComparisons();
-
-            // Ensure MathJax processes any dynamically-inserted math (e.g., in carousel tables).
-            // Wait for MathJax.startup.promise when available (handles async loading on GitHub Pages).
-            if (window.MathJax) {
-                const ready = (MathJax.startup && MathJax.startup.promise) ? MathJax.startup.promise : null;
-                if (ready) {
-                    ready.then(() => {
-                        if (typeof MathJax.typesetPromise === 'function') {
-                            MathJax.typesetPromise().catch(err => console.error('MathJax typeset failed:', err));
-                        } else if (typeof MathJax.typeset === 'function') {
-                            try { MathJax.typeset(); } catch (e) { console.error('MathJax typeset error:', e); }
-                        }
-                    }).catch(err => console.error('MathJax startup failed:', err));
-                } else {
-                    // If startup.promise isn't present yet, try to typeset when the script loads.
-                    const mjScript = document.getElementById('MathJax-script');
-                    if (mjScript) {
-                        mjScript.addEventListener('load', () => {
-                            if (window.MathJax && typeof MathJax.typesetPromise === 'function') {
-                                MathJax.typesetPromise().catch(err => console.error('MathJax typeset failed:', err));
-                            } else if (window.MathJax && typeof MathJax.typeset === 'function') {
-                                try { MathJax.typeset(); } catch (e) { console.error('MathJax typeset error:', e); }
-                            }
-                        });
-                    }
-                }
-            }
-        });
-
-        // Image Comparison Slider Logic
-        function initComparisons() {
-            var x, i;
-            x = document.getElementsByClassName("img-comp-overlay");
-            for (i = 0; i < x.length; i++) {
-                compareImages(x[i]);
-            }
-
-            function compareImages(img) {
-                var slider, clicked = 0, w, h;
-                // Use parent container for dimensions to be safe
-                w = img.parentElement.offsetWidth;
-                h = img.parentElement.offsetHeight;
-
-                var overlayImg = img.getElementsByTagName("img")[0];
-                if (overlayImg) {
-                    overlayImg.style.width = w + "px";
-                    overlayImg.style.maxWidth = "none";
-                }
-
-                img.style.width = (w / 2) + "px";
-
-                slider = document.createElement("DIV");
-                slider.setAttribute("class", "img-comp-slider");
-                img.parentElement.insertBefore(slider, img);
-
-                slider.style.top = (h / 2) - (slider.offsetHeight / 2) + "px";
-                slider.style.left = (w / 2) - (slider.offsetWidth / 2) + "px";
-
-                slider.addEventListener("mousedown", slideReady);
-                window.addEventListener("mouseup", slideFinish);
-                slider.addEventListener("touchstart", slideReady);
-                window.addEventListener("touchend", slideFinish);
-
-                // Update dimensions on window resize
-                window.addEventListener('resize', function () {
-                    w = img.parentElement.offsetWidth;
-                    h = img.parentElement.offsetHeight;
-                    if (overlayImg) {
-                        overlayImg.style.width = w + "px";
-                    }
-                    // Recenter slider vertically
-                    slider.style.top = (h / 2) - (slider.offsetHeight / 2) + "px";
-                    // Note: We keep the current slider horizontal position (in pixels) 
-                    // which might drift on resize, but fixing the image width is most important.
-                });
-
-                function slideReady(e) {
-                    e.preventDefault();
-                    clicked = 1;
-                    window.addEventListener("mousemove", slideMove);
-                    window.addEventListener("touchmove", slideMove);
-                }
-
-                function slideFinish() {
-                    clicked = 0;
-                }
-
-                function slideMove(e) {
-                    var pos;
-                    if (clicked == 0) return false;
-                    pos = getCursorPos(e);
-                    if (pos < 0) pos = 0;
-                    if (pos > w) pos = w;
-                    slide(pos);
-                }
-
-                function getCursorPos(e) {
-                    var a, x = 0;
-                    e = (e.changedTouches) ? e.changedTouches[0] : e;
-                    a = img.getBoundingClientRect();
-                    x = e.pageX - a.left;
-                    x = x - window.pageXOffset;
-                    return x;
-                }
-
-                function slide(x) {
-                    img.style.width = x + "px";
-                    slider.style.left = img.offsetWidth - (slider.offsetWidth / 2) + "px";
-                }
-            }
+        
+        function copyBibtex() {
+            const text = document.getElementById('bibtex-text').innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.querySelector('.citation-copy-btn');
+                const original = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+                setTimeout(() => {
+                    btn.innerHTML = original;
+                }, 2000);
+            });
         }
-
-
-        // Scroll Spy for Sidebar
+        
         function initScrollSpy() {
             const sections = document.querySelectorAll('section[id]');
             const sidebarLinks = document.querySelectorAll('.sidebar-item');
@@ -882,18 +526,10 @@
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
                         const id = entry.target.getAttribute('id');
-
-                        // Remove active class from all sidebar items
-                        sidebarLinks.forEach(link => {
-                            link.classList.remove('active');
-                        });
-
-                        // Add active class to the corresponding sidebar item
+                        sidebarLinks.forEach(link => link.classList.remove('active'));
                         const activeLink = document.querySelector(`.sidebar-item[href="#${id}"]`);
                         if (activeLink) {
                             activeLink.classList.add('active');
-
-                            // Update gradient position
                             const linkRect = activeLink.getBoundingClientRect();
                             const sidebarRect = sidebar.getBoundingClientRect();
                             const relativeTop = linkRect.top - sidebarRect.top;
@@ -903,30 +539,15 @@
                 });
             }, observerOptions);
 
-            sections.forEach(section => {
-                observer.observe(section);
-            });
+            sections.forEach(section => observer.observe(section));
         }
 
-        function copyBibtex() {
-            const text = document.getElementById('bibtex-text').innerText;
-            navigator.clipboard.writeText(text).then(() => {
-                const btn = document.querySelector('.citation-copy-btn');
-                const original = btn.innerHTML;
-                btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
-                setTimeout(() => {
-                    btn.innerHTML = original;
-                }, 2000);
-            });
-        }
-
-        // Initialize scroll spy when DOM is ready
-        // Initialize charts
+        // Initialize
         document.addEventListener('DOMContentLoaded', () => {
-            initComparisons();
+            new Carousel('carousel-quan', quantitativeData, renderQuantitative);
+            new Carousel('carousel-qual', qualitativeData, renderImageCard);
             initScrollSpy();
         });
-
 
     </script>
 </body>

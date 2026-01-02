@@ -356,7 +356,7 @@ p {
     gap: 1rem;
     margin-bottom: 0rem;
     color: var(--color-text-muted);
-    font-size: 0.875rem;
+    font-size: 1.2rem;
 }
 
 .hero-coauthor {
@@ -620,8 +620,8 @@ p {
 .analysis-image {
     width: 100%;
     height: auto;
-    max-height: 500px;
-    object-fit: contain;
+    max-height: 1000px;
+    object-fit: scale-down;
     border-radius: 0.5rem;
     background-color: var(--color-bg);
 }
@@ -856,7 +856,7 @@ p {
 
 @media (min-width: 768px) {
     .results-caption p {
-        font-size: 1rem;
+        font-size: 1.2rem;
     }
 }
 
