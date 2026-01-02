@@ -25,7 +25,7 @@
     <sup>1</sup>KAIST AI &nbsp; <sup>2</sup>SAMSUNG
   </p>
 
-  <h3 align="center"><a href="#">Paper</a> | <a href="https://github.com/cvlab-kaist/APPLE">Project Page</a></h3>
+  <h3 align="center"><a href="#">Paper</a> | <a href="https://cvlab-kaist.github.io/APPLE">Project Page</a></h3>
 
   <div align="center">
     <img src="assets/new_paper_figures/teaser.png" width="100%">
