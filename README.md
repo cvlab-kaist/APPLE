@@ -1,12 +1,12 @@
 <div align="center">
   <h1>Attribute-Preserving Pseudo-Labeling for Diffusion-Based Face Swapping</h1>
 
-  <p align="center">
+  <p>
     <a href="https://scholar.google.com/citations?user=A2PurdIAAAAJ&hl=en">Jiwon Kang<sup>1</sup></a>
     ·
-    Yeji Choi<sup>1</sup>
+    <a href="https://scholar.google.com/citations?user=IWvP0A4AAAAJ&hl=en">Yeji Choi<sup>1</sup></a>
     ·
-    JoungBin Lee<sup>1</sup>
+    <a href="https://scholar.google.com/citations?user=0H3dcPoAAAAJ&hl=en">JoungBin Lee<sup>1</sup></a>
     ·
     <a href="https://scholar.google.com/citations?user=7cyLEQ0AAAAJ&hl=en/">Wooseok Jang<sup>1</sup></a>
     ·
@@ -18,18 +18,16 @@
     ·
     Myungin Kim<sup>2</sup>
     ·
-    <a href="https://cvlab.kaist.ac.kr/">Seungryong Kim<sup>1</sup></a>
+    <a href="https://cvlab-kaist.ac.kr/">Seungryong Kim<sup>1</sup></a>
   </p>
 
-  <p align="center">
+  <p>
     <sup>1</sup>KAIST AI &nbsp; <sup>2</sup>SAMSUNG
   </p>
 
-  <h3 align="center"><a href="#">Paper</a> | <a href="https://cvlab-kaist.github.io/APPLE">Project Page</a></h3>
+  <h3><a href="#">Paper</a> | <a href="https://github.com/cvlab-kaist/APPLE">Project Page</a></h3>
 
-  <div align="center">
-    <img src="assets/new_paper_figures/teaser.png" width="100%">
-  </div>
+  <img src="assets/new_paper_figures/teaser.png" width="100%">
 </div>
 
 ## Abstract
