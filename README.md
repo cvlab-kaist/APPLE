@@ -11,7 +11,7 @@
     <a href="https://scholar.google.com/citations?user=7cyLEQ0AAAAJ&hl=en/">Wooseok Jang<sup>1</sup></a>
     ·
     Jinhyeok Choi<sup>1</sup>
-    ·
+    <br>
     Taekeun Kang<sup>2</sup>
     ·
     Yongjae Park<sup>2</sup>
