@@ -35,6 +35,14 @@ def main(args):
     inverse_cond = args.inverse_cond
     run_name = args.run_name
     ckpt = args.ckpt
+    checkpoint_path = args.checkpoint_path
+    
+    if checkpoint_path is not None:
+        if run_name is None:
+            run_name = os.path.basename(checkpoint_path)
+        if ckpt is None:
+            ckpt = "custom"
+
     base_path = args.base_path
     ffhq_base = args.ffhq_base_path
     if args.condition_type == 'blur_landmark':
@@ -86,7 +94,14 @@ def main(args):
                                         torch_dtype=weight_dtype).to(device)
 
 
-    lora_file_path = f'{base_path}/runs/{run_name}/ckpt/{ckpt}/default.safetensors'
+    if checkpoint_path:
+        if os.path.isdir(checkpoint_path):
+            lora_file_path = os.path.join(checkpoint_path, 'default.safetensors')
+        else:
+            lora_file_path = checkpoint_path
+    else:
+        lora_file_path = f'{base_path}/runs/{run_name}/ckpt/{ckpt}/default.safetensors'
+
     output_dir = f'{base_path}/results/{run_name}_ckpt{ckpt}_gs{guidance_scale}_imgGS{image_guidance_scale}_idGS{id_guidance_scale}/ffhq_eval/base'
 
     adapter_name = 'default'
@@ -250,12 +265,16 @@ if __name__ == '__main__':
 
     # Model
     parser.add_argument("--model_id", type=str, default='black-forest-labs/FLUX.1-Krea-dev', help="Model ID or path")
-    parser.add_argument("--run_name", type=str, required=True, help="Run name for LoRA weights") # pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_loss[lpips_t0.3]_train[omini]_globalresume2K
+    parser.add_argument("--run_name", type=str, default=None, help="Run name for LoRA weights") # pretrained[ffhq43K]_dataset[vgg]_loss[maskid_netarc_t0.3]_loss[lpips_t0.3]_train[omini]_globalresume2K
     parser.add_argument("--base_path", type=str, default='{base_path}', help="Model name")
     parser.add_argument("--ffhq_base_path", type=str, default='/home/work/.project/jiwon/dataset/ffhq_eval', help="FFHQ eval dataset base path")
     parser.add_argument("--condition_type", type=str, default=None, help="Condition type", choices=['blur_landmark', 'blur_landmark_iris', 'mask_landmark_iris'])
-    parser.add_argument("--ckpt", type=str, required=True, help="Checkpoint step or name")
+    parser.add_argument("--ckpt", type=str, default=None, help="Checkpoint step or name")
+    parser.add_argument("--checkpoint_path", type=str, default=None, help="Direct path to checkpoint directory")
 
     args = parser.parse_args()
+
+    if args.checkpoint_path is None and (args.run_name is None or args.ckpt is None):
+        parser.error("Either --checkpoint_path OR (--run_name and --ckpt) must be provided.")
 
     main(args)
