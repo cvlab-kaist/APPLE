@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>🍎APPLE: Attribute-Preserving Pseudo-Labeling for Diffusion-Based Face Swapping</h1>
+  <h1>Attribute-Preserving Pseudo-Labeling for Diffusion-Based Face Swapping</h1>
 
   <p>
     <a href="https://scholar.google.com/citations?user=A2PurdIAAAAJ&hl=en">Jiwon Kang<sup>1</sup></a>
@@ -25,7 +25,7 @@
     <sup>1</sup>KAIST AI &nbsp; <sup>2</sup>SAMSUNG
   </p>
 
-  <h3><a href="#">Paper</a> | <a href="https://cvlab-kaist.github.io/APPLE/">Project Page</a></h3>
+  <h3><a href="https://arxiv.org/abs/2601.15288">Paper</a> | <a href="https://cvlab-kaist.github.io/APPLE/">Project Page</a></h3>
 
   <img src="teaser.webp" width="100%">
 </div>
