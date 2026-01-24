@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>Attribute-Preserving Pseudo-Labeling for Diffusion-Based Face Swapping</h1>
+  <h1>🍎APPLE: Attribute-Preserving Pseudo-Labeling for Diffusion-Based Face Swapping</h1>
 
   <p>
     <a href="https://scholar.google.com/citations?user=A2PurdIAAAAJ&hl=en">Jiwon Kang<sup>1</sup></a>
