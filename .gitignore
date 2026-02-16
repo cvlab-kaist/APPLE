@@ -1,9 +1,9 @@
 results*
-checkpoints*
+# checkpoints*
 Other_dependencies*
 wandb/
 wget-log
-*.safetensors
+# *.safetensors
 __pycache__/
 *.pyc
 inversion*/
@@ -15,5 +15,5 @@ other_models/
 antelopev2
 ablation/
 reface_dataset/
-*.pth
+# *.pth
 *.npy
